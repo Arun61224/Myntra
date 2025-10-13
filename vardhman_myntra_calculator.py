@@ -34,16 +34,27 @@ def get_commission_rate(customer_paid_amount):
     else:
         return 0.29 
 
+# --- CRITICALLY FIXED FUNCTION ---
 def calculate_taxable_amount_value(customer_paid_amount):
-    """Calculates the Taxable Amount (Invoice Tax) tax value (5% for <=2500, 12% for >2500)."""
+    """
+    Calculates the Taxable Amount (Base Value before GST) 
+    using reverse calculation (Hundered-Division).
+    """
     if customer_paid_amount >= 2500:
-        tax_rate = 0.12
+        tax_rate = 0.12  # 12% GST
+        divisor = 1.12
     else:
-        tax_rate = 0.05
-    taxable_value = customer_paid_amount * tax_rate
-    return taxable_value
+        tax_rate = 0.05  # 5% GST
+        divisor = 1.05
+        
+    # Reverse calculation: Amount / (1 + Rate)
+    taxable_amount = customer_paid_amount / divisor
+    
+    # Returning both the Taxable Amount and the applied Rate for clarity
+    return taxable_amount, tax_rate
 
-# --- MAIN CALCULATION FUNCTION (TDS/TCS added here) ---
+
+# --- MAIN CALCULATION FUNCTION ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
     
@@ -65,16 +76,14 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value
-    taxable_amount_value = calculate_taxable_amount_value(customer_paid_amount)
+    # 3. Taxable Amount Value (FIXED)
+    taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS (TEMPORARY DUMMY VALUES - Update logic here later)
-    # Defaulting to 1% of Sale Price for now. Update this based on your exact formula.
-    tds = sale_price * 0.01 
-    tcs = sale_price * 0.005 # Example: 0.5% of Sale Price
+    # 4. TDS and TCS (TEMPORARY DUMMY VALUES - Please provide final logic)
+    tds = customer_paid_amount * 0.01  # Example: 1% of Customer Paid Amount
+    tcs = customer_paid_amount * 0.005 # Example: 0.5% of Customer Paid Amount
     
     # 5. Final Payment (Settled Amount)
-    # Assuming TDS/TCS are deducted from the payment
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
     
     # 6. Net Profit
@@ -82,7 +91,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
             final_commission, commission_rate, settled_amount, 
-            taxable_amount_value, net_profit, tds, tcs) # TDS/TCS added to return
+            taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
 # --- DATA LOADING (Robust against KeyError) ---
@@ -187,7 +196,7 @@ if mode == "Existing Listings (Search SKU)":
             # Perform calculations 
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit, tds, tcs) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
+             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
@@ -214,13 +223,13 @@ if mode == "Existing Listings (Search SKU)":
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
-                label="Taxable Value (Invoice Tax)",
+                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
                 value=f"₹ {taxable_amount_value:,.2f}",
             )
             
             st.markdown("<br>", unsafe_allow_html=True) 
             
-            # Row 3: TDS and TCS (NEW)
+            # Row 3: TDS and TCS
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
@@ -247,7 +256,7 @@ if mode == "Existing Listings (Search SKU)":
             col_net_profit.metric(
                 label="**NET PROFIT (After Product Cost)**",
                 value=f"₹ {net_profit:,.2f}",
-                delta=-product_cost, # Shows the cost deducted
+                delta=-product_cost,
                 delta_color="inverse"
             )
         
@@ -289,7 +298,7 @@ elif mode == "New Listings (Manual Input)":
             # Perform calculations
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit, tds, tcs) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
+             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
@@ -316,13 +325,13 @@ elif mode == "New Listings (Manual Input)":
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
-                label="Taxable Value (Invoice Tax)",
+                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
                 value=f"₹ {taxable_amount_value:,.2f}",
             )
             
             st.markdown("<br>", unsafe_allow_html=True) 
             
-            # Row 3: TDS and TCS (NEW)
+            # Row 3: TDS and TCS
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
