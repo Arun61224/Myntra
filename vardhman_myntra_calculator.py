@@ -7,7 +7,7 @@ st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Woo
 
 # Ensure your CSV file is in the same folder as this script
 FILE_NAME = "Calculator For Gemini.xlsx - Working.csv" 
-SKU_FILE_NAME = "sku.txt" 
+# SKU_FILE_NAME is removed
 
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
@@ -116,20 +116,7 @@ def load_data(file_name):
         st.error(f"An unexpected error occurred during data loading: {e}")
         st.stop()
 
-# --- FIXED FUNCTION: Load SKUs from TXT File ---
-def load_sku_list(sku_file_name):
-    """Loads a list of SKUs from a text file, one SKU per line."""
-    try:
-        with open(sku_file_name, 'r') as f:
-            # Read lines, strip whitespace (including newline), and filter out empty lines
-            skus = [line.strip() for line in f if line.strip()]
-        return skus
-    except FileNotFoundError:
-        # Instead of throwing an error, return None to indicate the file wasn't loaded
-        return None
-    except Exception as e:
-        st.error(f"Error loading SKU filter file: {e}")
-        return None
+# --- load_sku_list function is removed ---
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
@@ -174,30 +161,13 @@ if mode == "Existing Listings (Search SKU)":
     df = load_data(FILE_NAME) 
     st.header("Analyze Existing Product Profitability")
 
-    # Load and Filter Logic (FIXED FOR FileNotFoundError)
-    sku_list_from_file = load_sku_list(SKU_FILE_NAME)
-    
-    if sku_list_from_file is not None:
-        # Only proceed with filtering if the file was loaded successfully
-        df_filtered = df[df['seller sku code'].isin(sku_list_from_file)].copy()
-        
-        if df_filtered.empty:
-            st.warning(f"No matching SKUs found in the data file that are listed in **'{SKU_FILE_NAME}'**. Loading all available SKUs.")
-            unique_skus = sorted(df['seller sku code'].unique().tolist())
-        else:
-            st.info(f"Loaded {len(df_filtered)} SKUs from **'{SKU_FILE_NAME}'**.")
-            unique_skus = sorted(df_filtered['seller sku code'].unique().tolist())
-            df = df_filtered # Use the filtered DataFrame for the rest of the calculations
-    else:
-        # Fallback: If sku.txt was not found or failed, use all SKUs from the CSV
-        st.warning(f"SKU filter file **'{SKU_FILE_NAME}'** not found. Loading all SKUs from the main data file.")
-        unique_skus = sorted(df['seller sku code'].unique().tolist())
+    # Now loading ALL unique SKUs from the main CSV (No sku.txt dependency)
+    unique_skus = sorted(df['seller sku code'].unique().tolist())
     
     # Check if there are any SKUs to display
     if not unique_skus:
         st.error("No SKUs available in the data file to display.")
         st.stop()
-
 
     selected_sku = st.selectbox(
         "**1. Search & Select SKU:** (Type to filter list)",
@@ -205,7 +175,6 @@ if mode == "Existing Listings (Search SKU)":
     )
 
     if selected_sku:
-        # The DataFrame (df) is now either the original or the filtered one
         sku_data = df[df['seller sku code'] == selected_sku].iloc[0]
         
         st.subheader("2. Input Values")
