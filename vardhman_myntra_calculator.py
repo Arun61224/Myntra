@@ -76,16 +76,12 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     # 3. Taxable Amount Value (Base Value before GST)
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS (FINAL LOGIC IMPLEMENTED)
-    
-    # TCS: 10% of Tax Amount (Tax Amount = CPA - Taxable Value)
+    # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10
+    tcs = tax_amount * 0.10  # TCS: 10% of Tax Amount 
+    tds = taxable_amount_value * 0.001 # TDS: 0.1% of Taxable Amount
     
-    # TDS: 0.1% of Taxable Amount (0.1% = 0.001)
-    tds = taxable_amount_value * 0.001
-    
-    # 5. Final Payment (Settled Amount) - Deducting all charges including TDS/TCS
+    # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
     
     # 6. Net Profit
@@ -215,10 +211,11 @@ if mode == "Existing Listings (Search SKU)":
             # Row 2: Commission, Royalty, Taxable Value
             col_commission, col_royalty, col_taxable = st.columns(3)
             
+            # Commission Metric (Base Rate removed)
             col_commission.metric(
                 label="Total Commission (Incl. 18% Tax)",
                 value=f"₹ {final_commission:,.2f}",
-                delta=f"Base Rate: {commission_rate*100:.0f}%"
+                # delta removed here
             )
             col_royalty.metric(
                 label=f"Royalty Fee ({apply_royalty})",
@@ -317,10 +314,11 @@ elif mode == "New Listings (Manual Input)":
             # Row 2
             col_commission, col_royalty, col_taxable = st.columns(3)
             
+            # Commission Metric (Base Rate removed)
             col_commission.metric(
                 label="Total Commission (Incl. 18% Tax)",
                 value=f"₹ {final_commission:,.2f}",
-                delta=f"Base Rate: {commission_rate*100:.0f}%"
+                # delta removed here
             )
             col_royalty.metric(
                 label=f"Royalty Fee ({apply_royalty})",
