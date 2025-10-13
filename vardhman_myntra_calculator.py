@@ -43,7 +43,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_value = customer_paid_amount * tax_rate
     return taxable_value
 
-# --- MAIN CALCULATION FUNCTION ---
+# --- MAIN CALCULATION FUNCTION (TDS/TCS added here) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
     
@@ -54,10 +54,10 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic (Uses the 'Yes'/'No' string input)
+    # 1. Royalty Fee Logic
     royalty_fee = 0.0
-    if apply_royalty == 'Yes': # Check for the string 'Yes'
-        royalty_fee = customer_paid_amount * 0.10 # 10% of Customer Paid Amount
+    if apply_royalty == 'Yes':
+        royalty_fee = customer_paid_amount * 0.10
     
     # 2. Commission (Base + 18% Tax)
     commission_rate = get_commission_rate(customer_paid_amount)
@@ -68,15 +68,21 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     # 3. Taxable Amount Value
     taxable_amount_value = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. Final Payment (Settled Amount)
-    settled_amount = customer_paid_amount - final_commission - royalty_fee
+    # 4. TDS and TCS (TEMPORARY DUMMY VALUES - Update logic here later)
+    # Defaulting to 1% of Sale Price for now. Update this based on your exact formula.
+    tds = sale_price * 0.01 
+    tcs = sale_price * 0.005 # Example: 0.5% of Sale Price
     
-    # 5. Net Profit
+    # 5. Final Payment (Settled Amount)
+    # Assuming TDS/TCS are deducted from the payment
+    settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
+    
+    # 6. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
             final_commission, commission_rate, settled_amount, 
-            taxable_amount_value, net_profit)
+            taxable_amount_value, net_profit, tds, tcs) # TDS/TCS added to return
 
 
 # --- DATA LOADING (Robust against KeyError) ---
@@ -124,11 +130,11 @@ st.markdown("---")
 # --- CONFIGURATION BAR (Applies to both modes) ---
 st.sidebar.header("Calculation Settings")
 
-# Royalty Fee Radio Button (NEW FIX)
+# Royalty Fee Radio Button 
 apply_royalty = st.sidebar.radio(
     "Apply Royalty Fee (10% of CPA)?",
     ('Yes', 'No'),
-    index=0, # Default to 'Yes'
+    index=0, 
     horizontal=True
 )
 
@@ -178,16 +184,16 @@ if mode == "Existing Listings (Search SKU)":
         )
         
         try:
-            # Perform calculations using the new function structure
+            # Perform calculations 
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
+             taxable_amount_value, net_profit, tds, tcs) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
             st.subheader("3. Calculated Financial Metrics")
             
-            # Row 1
+            # Row 1: Sale Price, GT Charge, Customer Paid Amount
             col_sale, col_gt, col_customer = st.columns(3)
             col_sale.metric(label="Sale Price", value=f"₹ {sale_price:,.2f}")
             col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
@@ -195,7 +201,7 @@ if mode == "Existing Listings (Search SKU)":
 
             st.markdown("<br>", unsafe_allow_html=True) 
 
-            # Row 2
+            # Row 2: Commission, Royalty, Taxable Value
             col_commission, col_royalty, col_taxable = st.columns(3)
             
             col_commission.metric(
@@ -210,6 +216,21 @@ if mode == "Existing Listings (Search SKU)":
             col_taxable.metric(
                 label="Taxable Value (Invoice Tax)",
                 value=f"₹ {taxable_amount_value:,.2f}",
+            )
+            
+            st.markdown("<br>", unsafe_allow_html=True) 
+            
+            # Row 3: TDS and TCS (NEW)
+            col_tds, col_tcs, col_placeholder = st.columns(3)
+            
+            col_tds.metric(
+                label="TDS (Tax Deducted at Source)",
+                value=f"₹ {tds:,.2f}"
+            )
+            
+            col_tcs.metric(
+                label="TCS (Tax Collected at Source)",
+                value=f"₹ {tcs:,.2f}"
             )
             
             st.markdown("---")
@@ -268,7 +289,7 @@ elif mode == "New Listings (Manual Input)":
             # Perform calculations
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
+             taxable_amount_value, net_profit, tds, tcs) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
@@ -299,6 +320,21 @@ elif mode == "New Listings (Manual Input)":
                 value=f"₹ {taxable_amount_value:,.2f}",
             )
             
+            st.markdown("<br>", unsafe_allow_html=True) 
+            
+            # Row 3: TDS and TCS (NEW)
+            col_tds, col_tcs, col_placeholder = st.columns(3)
+            
+            col_tds.metric(
+                label="TDS (Tax Deducted at Source)",
+                value=f"₹ {tds:,.2f}"
+            )
+            
+            col_tcs.metric(
+                label="TCS (Tax Collected at Source)",
+                value=f"₹ {tcs:,.2f}"
+            )
+            
             st.markdown("---")
 
             # Final Payout & Net Profit
@@ -313,7 +349,7 @@ elif mode == "New Listings (Manual Input)":
             col_net_profit.metric(
                 label="**NET PROFIT (After Product Cost)**",
                 value=f"₹ {net_profit:,.2f}",
-                delta=-product_cost, # Shows the cost deducted
+                delta=-product_cost,
                 delta_color="inverse"
             )
 
