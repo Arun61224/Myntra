@@ -34,11 +34,10 @@ def get_commission_rate(customer_paid_amount):
     else:
         return 0.29 
 
-# --- CRITICALLY FIXED FUNCTION ---
 def calculate_taxable_amount_value(customer_paid_amount):
     """
     Calculates the Taxable Amount (Base Value before GST) 
-    using reverse calculation (Hundered-Division).
+    using reverse calculation (Hundered-Division: Amount / (1 + Rate)).
     """
     if customer_paid_amount >= 2500:
         tax_rate = 0.12  # 12% GST
@@ -47,14 +46,12 @@ def calculate_taxable_amount_value(customer_paid_amount):
         tax_rate = 0.05  # 5% GST
         divisor = 1.05
         
-    # Reverse calculation: Amount / (1 + Rate)
     taxable_amount = customer_paid_amount / divisor
     
-    # Returning both the Taxable Amount and the applied Rate for clarity
     return taxable_amount, tax_rate
 
 
-# --- MAIN CALCULATION FUNCTION ---
+# --- MAIN CALCULATION FUNCTION (FINAL LOGIC) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
     
@@ -76,14 +73,19 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value (FIXED)
+    # 3. Taxable Amount Value (Base Value before GST)
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS (TEMPORARY DUMMY VALUES - Please provide final logic)
-    tds = customer_paid_amount * 0.01  # Example: 1% of Customer Paid Amount
-    tcs = customer_paid_amount * 0.005 # Example: 0.5% of Customer Paid Amount
+    # 4. TDS and TCS (FINAL LOGIC IMPLEMENTED)
     
-    # 5. Final Payment (Settled Amount)
+    # TCS: 10% of Tax Amount (Tax Amount = CPA - Taxable Value)
+    tax_amount = customer_paid_amount - taxable_amount_value
+    tcs = tax_amount * 0.10
+    
+    # TDS: 0.1% of Taxable Amount (0.1% = 0.001)
+    tds = taxable_amount_value * 0.001
+    
+    # 5. Final Payment (Settled Amount) - Deducting all charges including TDS/TCS
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
     
     # 6. Net Profit
@@ -233,12 +235,12 @@ if mode == "Existing Listings (Search SKU)":
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
-                label="TDS (Tax Deducted at Source)",
+                label="TDS (Taxable Value * 0.1%)",
                 value=f"₹ {tds:,.2f}"
             )
             
             col_tcs.metric(
-                label="TCS (Tax Collected at Source)",
+                label="TCS (Tax Amount * 10%)",
                 value=f"₹ {tcs:,.2f}"
             )
             
@@ -248,7 +250,7 @@ if mode == "Existing Listings (Search SKU)":
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
-                label="FINAL SETTLED AMOUNT (Payout before Cost)",
+                label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
                 value=f"₹ {settled_amount:,.2f}",
                 delta_color="off"
             )
@@ -335,12 +337,12 @@ elif mode == "New Listings (Manual Input)":
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
-                label="TDS (Tax Deducted at Source)",
+                label="TDS (Taxable Value * 0.1%)",
                 value=f"₹ {tds:,.2f}"
             )
             
             col_tcs.metric(
-                label="TCS (Tax Collected at Source)",
+                label="TCS (Tax Amount * 10%)",
                 value=f"₹ {tcs:,.2f}"
             )
             
@@ -350,7 +352,7 @@ elif mode == "New Listings (Manual Input)":
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
-                label="FINAL SETTLED AMOUNT (Payout before Cost)",
+                label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
                 value=f"₹ {settled_amount:,.2f}",
                 delta_color="off"
             )
