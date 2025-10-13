@@ -8,7 +8,7 @@ st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Woo
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
-    """Calculates GT Charge based on Sale Price tiers (0-500: 54, 500-1000: 94, 1000+: 171)."""
+    # GT Charge logic
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -17,7 +17,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    # Commission rate logic remains the same
+    # Commission rate logic
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -32,7 +32,7 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    # Taxable value logic remains the same
+    # Taxable value logic
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -47,8 +47,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
 
 # --- MAIN CALCULATION FUNCTION (No Change) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    """Performs all sequential calculations for a given MRP and Discount."""
-    
+    # Performs all calculations
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -72,8 +71,8 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     
     # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10  # TCS: 10% of Tax Amount 
-    tds = taxable_amount_value * 0.001 # TDS: 0.1% of Taxable Amount
+    tcs = tax_amount * 0.10  
+    tds = taxable_amount_value * 0.001 
     
     # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
@@ -94,19 +93,23 @@ def load_data(uploaded_file):
         return None
         
     try:
-        # Use pandas to read the file directly from the uploader object
         df = pd.read_csv(uploaded_file)
+        
+        # FIX 1: Check if DataFrame is empty right after reading
+        if df.empty:
+            st.error("Data Error: The uploaded file is empty or contains no data rows.")
+            return None
         
         # Clean column names (strip whitespace and convert to lower)
         df.columns = df.columns.str.strip().str.lower()
         
         required_columns = ['seller sku code', 'mrp']
         
-        # --- DEBUGGING STEP ---
+        # FIX 2: Check for required columns and provide debug info if missing
         if not all(col in df.columns for col in required_columns):
             st.error("Data Error: Required columns 'seller sku code' or 'mrp' are missing after cleaning.")
-            st.error(f"**Available Column Names (First 5):** {df.columns.tolist()[:5]}")
-            st.warning("Please ensure the column names for MRP and SKU are exactly 'mrp' and 'seller sku code' (case-insensitive in the original file).")
+            st.warning(f"**Available Column Names (All):** {df.columns.tolist()}")
+            st.warning("Please ensure the column names are exactly 'mrp' and 'seller sku code' (case-insensitive in the original file).")
             return None
             
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
@@ -115,8 +118,13 @@ def load_data(uploaded_file):
         
         return df
         
+    except pd.errors.EmptyDataError:
+        st.error("Data Error: The uploaded file is empty.")
+        return None
     except Exception as e:
-        st.error(f"An unexpected error occurred during data loading: {e}")
+        # Catch other errors during file reading
+        st.error(f"An unexpected error occurred during file processing: {e}")
+        st.warning("Please verify that the file is saved correctly as a **CSV** file.")
         return None
 
 
@@ -172,11 +180,11 @@ if mode == "Existing Listings (Search SKU)":
         st.info("⚠️ Please upload your data file using the **'Upload Myntra Data CSV File'** option in the sidebar to use Existing Listings mode.")
         st.stop()
         
+    # Load data - load_data will return None if an error occurs
     df = load_data(uploaded_file)
     
     if df is None:
-        # Error message and debug info is already displayed inside load_data
-        st.stop()
+        st.stop() # Stop execution if data loading failed
         
     st.header("Analyze Existing Product Profitability")
 
@@ -184,7 +192,7 @@ if mode == "Existing Listings (Search SKU)":
     unique_skus = sorted(df['seller sku code'].unique().tolist())
     
     if not unique_skus:
-        st.error("No SKUs available in the data file to display.")
+        st.error("No valid SKUs found in the data file to display.")
         st.stop()
 
     selected_sku = st.selectbox(
