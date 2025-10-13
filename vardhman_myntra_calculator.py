@@ -11,7 +11,7 @@ FILE_NAME = "Calculator For Gemini.xlsx - Working.csv"
 # --- CALCULATION LOGIC FUNCTIONS ---
 
 def calculate_gt_charges(sale_price):
-    """Calculates GT Charge based on Sale Price tiers."""
+    """Calculates GT Charge based on Sale Price tiers (0-500: 54, 500-1000: 94, 1000+: 171)."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -35,7 +35,7 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    """Calculates the Taxable Amount (Invoice Tax) tax value."""
+    """Calculates the Taxable Amount (Invoice Tax) tax value (5% for <=2500, 12% for >2500)."""
     if customer_paid_amount >= 2500:
         tax_rate = 0.12
     else:
@@ -43,7 +43,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_value = customer_paid_amount * tax_rate
     return taxable_value
 
-# --- MAIN CALCULATION FUNCTION (FIXED against TypeError) ---
+# --- MAIN CALCULATION FUNCTION ---
 def perform_calculations(mrp, discount):
     """Performs all sequential calculations for a given MRP and Discount."""
     
@@ -54,7 +54,7 @@ def perform_calculations(mrp, discount):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # Royalty Fee (10% of Customer Paid Amount)
+    # Royalty Fee (10% of Customer Paid Amount, based on your previous sheets)
     royalty_fee = customer_paid_amount * 0.10
     
     # Commission (Base + 18% Tax)
@@ -75,17 +75,29 @@ def perform_calculations(mrp, discount):
             taxable_amount_value)
 
 
-# --- DATA LOADING FOR EXISTING LISTINGS MODE ---
+# --- DATA LOADING FOR EXISTING LISTINGS MODE (FIXED FOR KEYERROR) ---
 @st.cache_data
 def load_data(file_name):
-    """Loads and cleans the Myntra data for Existing Listings."""
+    """Loads and cleans the Myntra data for Existing Listings, ensuring robust column names."""
     try:
         df = pd.read_csv(file_name)
-        df.columns = df.columns.str.strip().str.lower()
+        
+        # --- CRITICAL FIX: Robust Column Cleaning to resolve KeyError ---
+        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.lower()
+        
+        required_columns = ['seller sku code', 'mrp']
+        if not all(col in df.columns for col in required_columns):
+            st.error(f"Data Error: Critical columns missing after cleaning. Expected: {required_columns}. Found: {df.columns.tolist()}")
+            st.stop()
+            
+        # --- Data Preparation ---
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
-        df.dropna(subset=['seller sku code', 'mrp'], inplace=True)
+        df.dropna(subset=required_columns, inplace=True)
         df = df.drop_duplicates(subset=['seller sku code'], keep='first')
+        
         return df
+        
     except FileNotFoundError:
         st.error(f"Error: The data file '{file_name}' was not found. Please ensure the file is in the correct directory.")
         st.stop()
@@ -109,6 +121,7 @@ st.markdown("---")
 # --- MODE 1: EXISTING LISTINGS (SKU Select with Search Box) ---
 if mode == "Existing Listings (Search SKU)":
     
+    # Load data now that we are in the correct mode
     df = load_data(FILE_NAME) 
     st.header("Analyze Existing Product Profitability")
 
@@ -121,6 +134,7 @@ if mode == "Existing Listings (Search SKU)":
     )
 
     if selected_sku:
+        # The KeyError fix in load_data ensures this index access works
         sku_data = df[df['seller sku code'] == selected_sku].iloc[0]
         
         st.subheader("2. Input Values")
