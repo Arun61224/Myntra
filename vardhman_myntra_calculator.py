@@ -5,9 +5,7 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA LOADING ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# Ensure your CSV file is in the same folder as this script
-FILE_NAME = "Calculator For Gemini.xlsx - Working.csv" 
-# SKU_FILE_NAME is removed
+# Removed FILE_NAME constant, now we use file_uploader
 
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
@@ -90,18 +88,23 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
-# --- DATA LOADING (CSV File) ---
+# --- DATA LOADING (CSV File - Reads UPLOADED file) ---
 @st.cache_data
-def load_data(file_name):
-    """Loads and cleans the Myntra data from the main CSV file."""
+def load_data(uploaded_file):
+    """Loads and cleans the Myntra data from the uploaded CSV file."""
+    if uploaded_file is None:
+        return None
+        
     try:
-        df = pd.read_csv(file_name)
+        # Use pandas to read the file directly from the uploader object
+        df = pd.read_csv(uploaded_file)
+        
         df.columns = df.columns.str.strip().str.lower()
         
         required_columns = ['seller sku code', 'mrp']
         if not all(col in df.columns for col in required_columns):
             st.error(f"Data Error: Critical columns missing after cleaning. Expected: {required_columns}. Found: {df.columns.tolist()}")
-            st.stop()
+            return None
             
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
         df.dropna(subset=required_columns, inplace=True)
@@ -109,30 +112,24 @@ def load_data(file_name):
         
         return df
         
-    except FileNotFoundError:
-        st.error(f"Error: The data file '{file_name}' was not found.")
-        st.stop()
     except Exception as e:
         st.error(f"An unexpected error occurred during data loading: {e}")
-        st.stop()
-
-# --- load_sku_list function is removed ---
+        return None
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
 
-# Top-level selection: Exiting Listings vs. New Listings
-mode = st.selectbox(
-    "Select Calculation Mode:",
-    ("Existing Listings (Search SKU)", "New Listings (Manual Input)"),
-    index=0 
+# --- CONFIGURATION BAR (Includes NEW File Uploader) ---
+st.sidebar.header("Data Upload")
+
+# NEW FILE UPLOADER
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Myntra Data CSV File", 
+    type=["csv"]
 )
 
-st.markdown("---")
-
-# --- CONFIGURATION BAR (Applies to both modes) ---
 st.sidebar.header("Calculation Settings")
 
 # Royalty Fee Radio Button 
@@ -152,19 +149,37 @@ product_cost = st.sidebar.number_input(
     help="This cost is deducted at the end to calculate Net Profit."
 )
 
-
 st.sidebar.markdown("---")
+
+# Top-level selection: Exiting Listings vs. New Listings
+mode = st.selectbox(
+    "Select Calculation Mode:",
+    ("Existing Listings (Search SKU)", "New Listings (Manual Input)"),
+    index=0 
+)
+
+st.markdown("---")
+
 
 # --- MODE 1: EXISTING LISTINGS (SKU Select with Search Box) ---
 if mode == "Existing Listings (Search SKU)":
     
-    df = load_data(FILE_NAME) 
+    # CHECK IF FILE IS UPLOADED
+    if uploaded_file is None:
+        st.info("⚠️ Please upload your data file using the **'Upload Myntra Data CSV File'** option in the sidebar to use Existing Listings mode.")
+        st.stop()
+        
+    df = load_data(uploaded_file)
+    
+    if df is None:
+        # Error message is already displayed inside load_data
+        st.stop()
+        
     st.header("Analyze Existing Product Profitability")
 
-    # Now loading ALL unique SKUs from the main CSV (No sku.txt dependency)
+    # Loading ALL unique SKUs from the uploaded CSV
     unique_skus = sorted(df['seller sku code'].unique().tolist())
     
-    # Check if there are any SKUs to display
     if not unique_skus:
         st.error("No SKUs available in the data file to display.")
         st.stop()
