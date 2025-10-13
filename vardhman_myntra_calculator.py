@@ -54,9 +54,9 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic (NEW)
+    # 1. Royalty Fee Logic (Uses the 'Yes'/'No' string input)
     royalty_fee = 0.0
-    if apply_royalty:
+    if apply_royalty == 'Yes': # Check for the string 'Yes'
         royalty_fee = customer_paid_amount * 0.10 # 10% of Customer Paid Amount
     
     # 2. Commission (Base + 18% Tax)
@@ -71,7 +71,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     # 4. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee
     
-    # 5. Net Profit (NEW)
+    # 5. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -124,13 +124,15 @@ st.markdown("---")
 # --- CONFIGURATION BAR (Applies to both modes) ---
 st.sidebar.header("Calculation Settings")
 
-# Royalty Fee Toggle (NEW)
-apply_royalty = st.sidebar.checkbox(
-    "Apply Royalty Fee (10% of Customer Paid Amount)", 
-    value=True # Default to Yes/True
+# Royalty Fee Radio Button (NEW FIX)
+apply_royalty = st.sidebar.radio(
+    "Apply Royalty Fee (10% of CPA)?",
+    ('Yes', 'No'),
+    index=0, # Default to 'Yes'
+    horizontal=True
 )
 
-# Product Cost Input (NEW)
+# Product Cost Input
 product_cost = st.sidebar.number_input(
     "Enter Product Cost (₹)",
     min_value=0.0,
@@ -202,7 +204,7 @@ if mode == "Existing Listings (Search SKU)":
                 delta=f"Base Rate: {commission_rate*100:.0f}%"
             )
             col_royalty.metric(
-                label=f"Royalty Fee ({'Applied' if apply_royalty else 'Skipped'})",
+                label=f"Royalty Fee ({apply_royalty})",
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
@@ -212,7 +214,7 @@ if mode == "Existing Listings (Search SKU)":
             
             st.markdown("---")
 
-            # Final Payout & Net Profit (NEW)
+            # Final Payout & Net Profit 
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
@@ -289,7 +291,7 @@ elif mode == "New Listings (Manual Input)":
                 delta=f"Base Rate: {commission_rate*100:.0f}%"
             )
             col_royalty.metric(
-                label=f"Royalty Fee ({'Applied' if apply_royalty else 'Skipped'})",
+                label=f"Royalty Fee ({apply_royalty})",
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
@@ -299,7 +301,7 @@ elif mode == "New Listings (Manual Input)":
             
             st.markdown("---")
 
-            # Final Payout & Net Profit (NEW)
+            # Final Payout & Net Profit
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
