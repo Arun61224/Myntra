@@ -7,8 +7,9 @@ st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Woo
 
 # Ensure your CSV file is in the same folder as this script
 FILE_NAME = "Calculator For Gemini.xlsx - Working.csv" 
+SKU_FILE_NAME = "sku.txt" # New file name added here
 
-# --- CALCULATION LOGIC FUNCTIONS ---
+# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
     """Calculates GT Charge based on Sale Price tiers (0-500: 54, 500-1000: 94, 1000+: 171)."""
@@ -20,7 +21,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    """Determines the commission rate based on Customer Paid Amount tiers."""
+    # Commission rate logic remains the same
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -35,15 +36,12 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    """
-    Calculates the Taxable Amount (Base Value before GST) 
-    using reverse calculation (Hundered-Division: Amount / (1 + Rate)).
-    """
+    # Taxable value logic remains the same
     if customer_paid_amount >= 2500:
-        tax_rate = 0.12  # 12% GST
+        tax_rate = 0.12 
         divisor = 1.12
     else:
-        tax_rate = 0.05  # 5% GST
+        tax_rate = 0.05
         divisor = 1.05
         
     taxable_amount = customer_paid_amount / divisor
@@ -51,7 +49,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     return taxable_amount, tax_rate
 
 
-# --- MAIN CALCULATION FUNCTION (FINAL LOGIC) ---
+# --- MAIN CALCULATION FUNCTION (No Change) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
     
@@ -67,13 +65,13 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
     
-    # 2. Commission (Base + 18% Tax)
+    # 2. Commission 
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value (Base Value before GST)
+    # 3. Taxable Amount Value
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
     # 4. TDS and TCS 
@@ -92,15 +90,13 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
-# --- DATA LOADING (Robust against KeyError) ---
+# --- DATA LOADING (CSV File) ---
 @st.cache_data
 def load_data(file_name):
-    """Loads and cleans the Myntra data for Existing Listings, ensuring robust column names."""
+    """Loads and cleans the Myntra data from the main CSV file."""
     try:
         df = pd.read_csv(file_name)
-        
-        df.columns = df.columns.str.strip()
-        df.columns = df.columns.str.lower()
+        df.columns = df.columns.str.strip().str.lower()
         
         required_columns = ['seller sku code', 'mrp']
         if not all(col in df.columns for col in required_columns):
@@ -114,11 +110,26 @@ def load_data(file_name):
         return df
         
     except FileNotFoundError:
-        st.error(f"Error: The data file '{file_name}' was not found. Please ensure the file is in the correct directory.")
+        st.error(f"Error: The data file '{file_name}' was not found.")
         st.stop()
     except Exception as e:
         st.error(f"An unexpected error occurred during data loading: {e}")
         st.stop()
+
+# --- NEW FUNCTION: Load SKUs from TXT File ---
+def load_sku_list(sku_file_name):
+    """Loads a list of SKUs from a text file, one SKU per line."""
+    try:
+        with open(sku_file_name, 'r') as f:
+            # Read lines, strip whitespace (including newline), and filter out empty lines
+            skus = [line.strip() for line in f if line.strip()]
+        return skus
+    except FileNotFoundError:
+        st.warning(f"SKU filter file '{sku_file_name}' not found. Loading all SKUs from the main data file.")
+        return None
+    except Exception as e:
+        st.error(f"Error loading SKU filter file: {e}")
+        return None
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
@@ -163,14 +174,38 @@ if mode == "Existing Listings (Search SKU)":
     df = load_data(FILE_NAME) 
     st.header("Analyze Existing Product Profitability")
 
-    unique_skus = sorted(df['seller sku code'].unique().tolist())
+    # Load and Filter Logic (NEW)
+    sku_list_from_file = load_sku_list(SKU_FILE_NAME)
     
+    if sku_list_from_file:
+        # Filter the main DataFrame to include only SKUs from the text file
+        df_filtered = df[df['seller sku code'].isin(sku_list_from_file)].copy()
+        
+        if df_filtered.empty:
+            st.warning(f"No matching SKUs found in the data file that are listed in '{SKU_FILE_NAME}'. Showing all available SKUs.")
+            # If no match, fallback to showing all SKUs
+            unique_skus = sorted(df['seller sku code'].unique().tolist())
+        else:
+            st.info(f"Loaded {len(df_filtered)} SKUs from '{SKU_FILE_NAME}'.")
+            unique_skus = sorted(df_filtered['seller sku code'].unique().tolist())
+            df = df_filtered # Use the filtered DataFrame for the rest of the calculations
+    else:
+        # If the file is not found or is empty, use all SKUs from the CSV
+        unique_skus = sorted(df['seller sku code'].unique().tolist())
+    
+    # Check if there are any SKUs to display
+    if not unique_skus:
+        st.error("No SKUs available in the data file to display.")
+        st.stop()
+
+
     selected_sku = st.selectbox(
         "**1. Search & Select SKU:** (Type to filter list)",
         unique_skus
     )
 
     if selected_sku:
+        # The DataFrame (df) is now either the original or the filtered one
         sku_data = df[df['seller sku code'] == selected_sku].iloc[0]
         
         st.subheader("2. Input Values")
@@ -211,11 +246,9 @@ if mode == "Existing Listings (Search SKU)":
             # Row 2: Commission, Royalty, Taxable Value
             col_commission, col_royalty, col_taxable = st.columns(3)
             
-            # Commission Metric (Base Rate removed)
             col_commission.metric(
                 label="Total Commission (Incl. 18% Tax)",
                 value=f"₹ {final_commission:,.2f}",
-                # delta removed here
             )
             col_royalty.metric(
                 label=f"Royalty Fee ({apply_royalty})",
@@ -267,7 +300,7 @@ if mode == "Existing Listings (Search SKU)":
         st.info("Please select a SKU to begin the calculation.")
 
 
-# --- MODE 2: NEW LISTINGS (Manual Entry) ---
+# --- MODE 2: NEW LISTINGS (Manual Entry) (No Change) ---
 elif mode == "New Listings (Manual Input)":
     st.header("New Listing Profitability Simulation")
     st.info("Enter your desired MRP and Discount to calculate the net profit.")
@@ -314,11 +347,9 @@ elif mode == "New Listings (Manual Input)":
             # Row 2
             col_commission, col_royalty, col_taxable = st.columns(3)
             
-            # Commission Metric (Base Rate removed)
             col_commission.metric(
                 label="Total Commission (Incl. 18% Tax)",
                 value=f"₹ {final_commission:,.2f}",
-                # delta removed here
             )
             col_royalty.metric(
                 label=f"Royalty Fee ({apply_royalty})",
