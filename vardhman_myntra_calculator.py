@@ -5,10 +5,12 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA LOADING ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
+SKU_FILE_NAME = "sku.txt" # File name added back
+
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
-    # GT Charge logic
+    """Calculates GT Charge based on Sale Price tiers (0-500: 54, 500-1000: 94, 1000+: 171)."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -17,7 +19,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    # Commission rate logic
+    # Commission rate logic remains the same
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -32,7 +34,7 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    # Taxable value logic
+    # Taxable value logic remains the same
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -47,7 +49,8 @@ def calculate_taxable_amount_value(customer_paid_amount):
 
 # --- MAIN CALCULATION FUNCTION (No Change) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    # Performs all calculations
+    """Performs all sequential calculations for a given MRP and Discount."""
+    
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -71,8 +74,8 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     
     # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10  
-    tds = taxable_amount_value * 0.001 
+    tcs = tax_amount * 0.10  # TCS: 10% of Tax Amount 
+    tds = taxable_amount_value * 0.001 # TDS: 0.1% of Taxable Amount
     
     # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
@@ -95,7 +98,7 @@ def load_data(uploaded_file):
     try:
         df = pd.read_csv(uploaded_file)
         
-        # FIX 1: Check if DataFrame is empty right after reading
+        # Check if DataFrame is empty
         if df.empty:
             st.error("Data Error: The uploaded file is empty or contains no data rows.")
             return None
@@ -103,9 +106,10 @@ def load_data(uploaded_file):
         # Clean column names (strip whitespace and convert to lower)
         df.columns = df.columns.str.strip().str.lower()
         
+        # NOTE: If your file uses different column names (like 'Product MRP' or 'Seller SKU'), 
+        # you MUST change these strings to match the names in your file.
         required_columns = ['seller sku code', 'mrp']
         
-        # FIX 2: Check for required columns and provide debug info if missing
         if not all(col in df.columns for col in required_columns):
             st.error("Data Error: Required columns 'seller sku code' or 'mrp' are missing after cleaning.")
             st.warning(f"**Available Column Names (All):** {df.columns.tolist()}")
@@ -125,6 +129,21 @@ def load_data(uploaded_file):
         # Catch other errors during file reading
         st.error(f"An unexpected error occurred during file processing: {e}")
         st.warning("Please verify that the file is saved correctly as a **CSV** file.")
+        return None
+
+# --- NEW/FIXED FUNCTION: Load SKUs from TXT File ---
+def load_sku_list(sku_file_name):
+    """Loads a list of SKUs from a text file, one SKU per line. Returns None on FileNotFoundError."""
+    try:
+        with open(sku_file_name, 'r') as f:
+            # Read lines, strip whitespace (including newline), and filter out empty lines
+            skus = [line.strip() for line in f if line.strip()]
+        return skus
+    except FileNotFoundError:
+        # Return None gracefully if file is not found
+        return None
+    except Exception as e:
+        st.error(f"Error loading SKU filter file: {e}")
         return None
 
 
@@ -188,8 +207,26 @@ if mode == "Existing Listings (Search SKU)":
         
     st.header("Analyze Existing Product Profitability")
 
-    # Loading ALL unique SKUs from the uploaded CSV
-    unique_skus = sorted(df['seller sku code'].unique().tolist())
+    # Load and Filter Logic (ADDED BACK)
+    sku_list_from_file = load_sku_list(SKU_FILE_NAME)
+    
+    if sku_list_from_file is not None and sku_list_from_file:
+        # Filter the main DataFrame to include only SKUs from the text file
+        df_filtered = df[df['seller sku code'].isin(sku_list_from_file)].copy()
+        
+        if df_filtered.empty:
+            st.warning(f"No matching SKUs found in the uploaded data that are listed in **'{SKU_FILE_NAME}'**. Loading all available SKUs.")
+            unique_skus = sorted(df['seller sku code'].unique().tolist())
+        else:
+            st.info(f"Filtered to {len(df_filtered)} SKUs listed in **'{SKU_FILE_NAME}'**.")
+            unique_skus = sorted(df_filtered['seller sku code'].unique().tolist())
+            df = df_filtered # Use the filtered DataFrame for the rest of the calculations
+    else:
+        if sku_list_from_file is None:
+             st.warning(f"SKU filter file **'{SKU_FILE_NAME}'** not found. Loading all SKUs from the uploaded data.")
+        # Fallback: If file not found or empty, use all SKUs from the CSV
+        unique_skus = sorted(df['seller sku code'].unique().tolist())
+    
     
     if not unique_skus:
         st.error("No valid SKUs found in the data file to display.")
