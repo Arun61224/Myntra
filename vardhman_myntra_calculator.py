@@ -44,7 +44,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     return taxable_value
 
 # --- MAIN CALCULATION FUNCTION ---
-def perform_calculations(mrp, discount):
+def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
     
     sale_price = mrp - discount
@@ -54,35 +54,38 @@ def perform_calculations(mrp, discount):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # Royalty Fee (10% of Customer Paid Amount, based on your previous sheets)
-    royalty_fee = customer_paid_amount * 0.10
+    # 1. Royalty Fee Logic (NEW)
+    royalty_fee = 0.0
+    if apply_royalty:
+        royalty_fee = customer_paid_amount * 0.10 # 10% of Customer Paid Amount
     
-    # Commission (Base + 18% Tax)
+    # 2. Commission (Base + 18% Tax)
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # Taxable Amount Value
+    # 3. Taxable Amount Value
     taxable_amount_value = calculate_taxable_amount_value(customer_paid_amount)
     
-    # Final Payment
-    settled_amount_before_royalty = customer_paid_amount - final_commission
-    payment_after_royalty = settled_amount_before_royalty - royalty_fee
+    # 4. Final Payment (Settled Amount)
+    settled_amount = customer_paid_amount - final_commission - royalty_fee
+    
+    # 5. Net Profit (NEW)
+    net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-            final_commission, commission_rate, payment_after_royalty, 
-            taxable_amount_value)
+            final_commission, commission_rate, settled_amount, 
+            taxable_amount_value, net_profit)
 
 
-# --- DATA LOADING FOR EXISTING LISTINGS MODE (FIXED FOR KEYERROR) ---
+# --- DATA LOADING (Robust against KeyError) ---
 @st.cache_data
 def load_data(file_name):
     """Loads and cleans the Myntra data for Existing Listings, ensuring robust column names."""
     try:
         df = pd.read_csv(file_name)
         
-        # --- CRITICAL FIX: Robust Column Cleaning to resolve KeyError ---
         df.columns = df.columns.str.strip()
         df.columns = df.columns.str.lower()
         
@@ -91,7 +94,6 @@ def load_data(file_name):
             st.error(f"Data Error: Critical columns missing after cleaning. Expected: {required_columns}. Found: {df.columns.tolist()}")
             st.stop()
             
-        # --- Data Preparation ---
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
         df.dropna(subset=required_columns, inplace=True)
         df = df.drop_duplicates(subset=['seller sku code'], keep='first')
@@ -105,7 +107,8 @@ def load_data(file_name):
         st.error(f"An unexpected error occurred during data loading: {e}")
         st.stop()
 
-# --- 3. STREAMLIT APP STRUCTURE ---
+
+# --- 2. STREAMLIT APP STRUCTURE ---
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
 
@@ -118,23 +121,41 @@ mode = st.selectbox(
 
 st.markdown("---")
 
+# --- CONFIGURATION BAR (Applies to both modes) ---
+st.sidebar.header("Calculation Settings")
+
+# Royalty Fee Toggle (NEW)
+apply_royalty = st.sidebar.checkbox(
+    "Apply Royalty Fee (10% of Customer Paid Amount)", 
+    value=True # Default to Yes/True
+)
+
+# Product Cost Input (NEW)
+product_cost = st.sidebar.number_input(
+    "Enter Product Cost (₹)",
+    min_value=0.0,
+    value=0.0,
+    step=10.0,
+    help="This cost is deducted at the end to calculate Net Profit."
+)
+
+
+st.sidebar.markdown("---")
+
 # --- MODE 1: EXISTING LISTINGS (SKU Select with Search Box) ---
 if mode == "Existing Listings (Search SKU)":
     
-    # Load data now that we are in the correct mode
     df = load_data(FILE_NAME) 
     st.header("Analyze Existing Product Profitability")
 
     unique_skus = sorted(df['seller sku code'].unique().tolist())
     
-    # The required SKU search box
     selected_sku = st.selectbox(
         "**1. Search & Select SKU:** (Type to filter list)",
         unique_skus
     )
 
     if selected_sku:
-        # The KeyError fix in load_data ensures this index access works
         sku_data = df[df['seller sku code'] == selected_sku].iloc[0]
         
         st.subheader("2. Input Values")
@@ -155,10 +176,10 @@ if mode == "Existing Listings (Search SKU)":
         )
         
         try:
-            # Perform calculations
+            # Perform calculations using the new function structure
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-             final_commission, commission_rate, payment_after_royalty, 
-             taxable_amount_value) = perform_calculations(mrp_from_data, discount)
+             final_commission, commission_rate, settled_amount, 
+             taxable_amount_value, net_profit) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
@@ -181,7 +202,7 @@ if mode == "Existing Listings (Search SKU)":
                 delta=f"Base Rate: {commission_rate*100:.0f}%"
             )
             col_royalty.metric(
-                label="Royalty Fee (10% of C.P.A)",
+                label=f"Royalty Fee ({'Applied' if apply_royalty else 'Skipped'})",
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
@@ -191,11 +212,20 @@ if mode == "Existing Listings (Search SKU)":
             
             st.markdown("---")
 
-            # Final Payout
-            st.metric(
-                label="**FINAL PAYMENT (NET PAYOUT)**",
-                value=f"₹ {payment_after_royalty:,.2f}",
-                delta_color="normal"
+            # Final Payout & Net Profit (NEW)
+            col_settled, col_net_profit = st.columns(2)
+
+            col_settled.metric(
+                label="FINAL SETTLED AMOUNT (Payout before Cost)",
+                value=f"₹ {settled_amount:,.2f}",
+                delta_color="off"
+            )
+            
+            col_net_profit.metric(
+                label="**NET PROFIT (After Product Cost)**",
+                value=f"₹ {net_profit:,.2f}",
+                delta=-product_cost, # Shows the cost deducted
+                delta_color="inverse"
             )
         
         except ValueError as e:
@@ -209,7 +239,7 @@ if mode == "Existing Listings (Search SKU)":
 # --- MODE 2: NEW LISTINGS (Manual Entry) ---
 elif mode == "New Listings (Manual Input)":
     st.header("New Listing Profitability Simulation")
-    st.info("Enter your desired MRP and Discount to calculate the final payout.")
+    st.info("Enter your desired MRP and Discount to calculate the net profit.")
 
     # Input fields for MRP and Discount
     col_mrp_in, col_discount_in = st.columns(2)
@@ -235,8 +265,8 @@ elif mode == "New Listings (Manual Input)":
         try:
             # Perform calculations
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-             final_commission, commission_rate, payment_after_royalty, 
-             taxable_amount_value) = perform_calculations(new_mrp, new_discount)
+             final_commission, commission_rate, settled_amount, 
+             taxable_amount_value, net_profit) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
              
             # Display Results
             st.markdown("---")
@@ -259,7 +289,7 @@ elif mode == "New Listings (Manual Input)":
                 delta=f"Base Rate: {commission_rate*100:.0f}%"
             )
             col_royalty.metric(
-                label="Royalty Fee (10% of C.P.A)",
+                label=f"Royalty Fee ({'Applied' if apply_royalty else 'Skipped'})",
                 value=f"₹ {royalty_fee:,.2f}",
             )
             col_taxable.metric(
@@ -269,11 +299,20 @@ elif mode == "New Listings (Manual Input)":
             
             st.markdown("---")
 
-            # Final Payout
-            st.metric(
-                label="**FINAL PAYMENT (NET PAYOUT)**",
-                value=f"₹ {payment_after_royalty:,.2f}",
-                delta_color="normal"
+            # Final Payout & Net Profit (NEW)
+            col_settled, col_net_profit = st.columns(2)
+
+            col_settled.metric(
+                label="FINAL SETTLED AMOUNT (Payout before Cost)",
+                value=f"₹ {settled_amount:,.2f}",
+                delta_color="off"
+            )
+            
+            col_net_profit.metric(
+                label="**NET PROFIT (After Product Cost)**",
+                value=f"₹ {net_profit:,.2f}",
+                delta=-product_cost, # Shows the cost deducted
+                delta_color="inverse"
             )
 
         except ValueError as e:
