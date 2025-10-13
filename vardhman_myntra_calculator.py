@@ -5,8 +5,6 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA LOADING ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# Removed FILE_NAME constant, now we use file_uploader
-
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
@@ -99,11 +97,16 @@ def load_data(uploaded_file):
         # Use pandas to read the file directly from the uploader object
         df = pd.read_csv(uploaded_file)
         
+        # Clean column names (strip whitespace and convert to lower)
         df.columns = df.columns.str.strip().str.lower()
         
         required_columns = ['seller sku code', 'mrp']
+        
+        # --- DEBUGGING STEP ---
         if not all(col in df.columns for col in required_columns):
-            st.error(f"Data Error: Critical columns missing after cleaning. Expected: {required_columns}. Found: {df.columns.tolist()}")
+            st.error("Data Error: Required columns 'seller sku code' or 'mrp' are missing after cleaning.")
+            st.error(f"**Available Column Names (First 5):** {df.columns.tolist()[:5]}")
+            st.warning("Please ensure the column names for MRP and SKU are exactly 'mrp' and 'seller sku code' (case-insensitive in the original file).")
             return None
             
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
@@ -121,10 +124,10 @@ def load_data(uploaded_file):
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
 
-# --- CONFIGURATION BAR (Includes NEW File Uploader) ---
+# --- CONFIGURATION BAR (Includes File Uploader) ---
 st.sidebar.header("Data Upload")
 
-# NEW FILE UPLOADER
+# FILE UPLOADER
 uploaded_file = st.sidebar.file_uploader(
     "Upload Myntra Data CSV File", 
     type=["csv"]
@@ -172,7 +175,7 @@ if mode == "Existing Listings (Search SKU)":
     df = load_data(uploaded_file)
     
     if df is None:
-        # Error message is already displayed inside load_data
+        # Error message and debug info is already displayed inside load_data
         st.stop()
         
     st.header("Analyze Existing Product Profitability")
@@ -278,6 +281,8 @@ if mode == "Existing Listings (Search SKU)":
         
         except ValueError as e:
             st.error(str(e))
+        except KeyError as e:
+            st.error(f"Calculation Error: Column not found: {e}. Please check the column name in your data.")
 
 
     else:
