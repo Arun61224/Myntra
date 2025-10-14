@@ -5,18 +5,10 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# 🚀 GITHUB RAW URL MAPPED HERE 🚀
-# Assuming 'main' branch is correct. If this fails, try using the longer link again.
-SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/main/sku.txt" 
-
-# REQUIRED COLUMN NAMES (Must exactly match the header in your sku.txt file)
-MRP_COLUMNS = ['mrp'] 
-SKU_COLUMNS = ['sku code'] 
-DISCOUNT_COLUMNS = ['discount']
-
-# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
+# --- CALCULATION LOGIC FUNCTIONS ---
 
 def calculate_gt_charges(sale_price):
+    """Calculates GT Charge based on Sale Price tiers."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -25,6 +17,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
+    """Determines the commission rate based on Customer Paid Amount."""
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -39,16 +32,21 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
+    """Calculates Taxable Value and Invoice Tax Rate (GST)."""
+    # 12% GST slab for CPAs >= 2500, 5% otherwise.
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
     else:
         tax_rate = 0.05
         divisor = 1.05
+        
     taxable_amount = customer_paid_amount / divisor
+    
     return taxable_amount, tax_rate
 
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
+    """Performs all sequential calculations for profit analysis."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -56,22 +54,29 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
+    # 1. Royalty Fee Logic (10% of CPA)
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
     
+    # 2. Commission (Rate determined dynamically, then 18% tax added)
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
+    # 3. Taxable Amount Value (for GST)
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
+    # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
+    # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
+    
+    # 6. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -79,70 +84,13 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
-# --- DATA LOADING (Loads File from GitHub URL) ---
-@st.cache_data
-def load_data(file_url):
-    """Loads and cleans the Myntra data from the GitHub URL, expecting only 3 specific columns."""
-    
-    st.info(f"Attempting to load data from: **{file_url}**")
-        
-    try:
-        df = pd.read_csv(file_url) 
-        
-        if df.empty:
-            st.error("Data Error: The loaded file is empty or contains no data rows.")
-            return None
-        
-        # Clean column names
-        df.columns = df.columns.str.strip().str.lower()
-        
-        # --- COLUMN DETECTION (Using the user's preferred names) ---
-        mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
-        sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
-        discount_col_name = next((col for col in DISCOUNT_COLUMNS if col in df.columns), None)
-        
-        required = {'mrp': mrp_col_name, 'sku code': sku_col_name, 'discount': discount_col_name}
-        missing = [key for key, val in required.items() if val is None]
-        
-        if missing:
-            st.error(f"Data Error: Could not find all required columns in the GitHub file.")
-            st.warning(f"Missing Columns: **{', '.join(missing)}**. Please ensure your header is exactly: `mrp,sku code,discount`")
-            st.warning(f"Available Columns: {df.columns.tolist()}")
-            return None
-            
-        # Rename columns to standard internal names
-        df.rename(columns={mrp_col_name: 'mrp', sku_col_name: 'seller sku code', discount_col_name: 'discount'}, inplace=True)
-
-        # Clean data and convert to numeric
-        df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
-        df['discount'] = pd.to_numeric(df['discount'], errors='coerce').fillna(0) 
-        
-        df.dropna(subset=['mrp', 'seller sku code'], inplace=True)
-        df = df.drop_duplicates(subset=['seller sku code'], keep='first')
-        
-        st.success(f"Data loaded successfully! Total {len(df)} unique SKUs found.")
-        return df
-        
-    except Exception as e:
-        st.error(f"An unexpected error occurred while loading data from GitHub: {e}")
-        st.warning("Please ensure the GitHub file is public, the URL is correct, and the file is properly formatted (CSV/TXT).")
-        return None
-
-
 # --- 2. STREAMLIT APP STRUCTURE ---
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
-
-# Load data automatically at the start of the app
-df = load_data(SKU_FILE_NAME)
+st.header("Profitability Simulation (Manual Input)")
+st.info("Simply enter the **MRP** and the desired **Discount Amount** to calculate the profit.")
 
 # --- CONFIGURATION BAR ---
-st.sidebar.header("Data Source")
-if df is not None:
-    st.sidebar.success("Data loaded from GitHub URL.")
-else:
-    st.sidebar.error("Data loading failed. Check error above.")
-
 st.sidebar.header("Calculation Settings")
 
 # Royalty Fee Radio Button 
@@ -164,215 +112,94 @@ product_cost = st.sidebar.number_input(
 
 st.sidebar.markdown("---")
 
-# Top-level selection: Exiting Listings vs. New Listings
-mode = st.selectbox(
-    "Select Calculation Mode:",
-    ("Existing Listings (Search SKU)", "New Listings (Manual Input)"),
-    index=0 
+
+# --- INPUT FIELDS ---
+
+col_mrp_in, col_discount_in = st.columns(2)
+
+new_mrp = col_mrp_in.number_input(
+    "1. Enter Product **MRP** (₹)",
+    min_value=1.0,
+    value=1500.0,
+    step=100.0,
+    key="new_mrp"
+)
+
+new_discount = col_discount_in.number_input(
+    "2. Enter Discount **Amount** (₹)",
+    min_value=0.0,
+    max_value=new_mrp,
+    value=0.0,
+    step=10.0,
+    key="new_discount"
 )
 
 st.markdown("---")
 
-
-# --- MODE 1: EXISTING LISTINGS (Reads from GitHub Data) ---
-if mode == "Existing Listings (Search SKU)":
-    
-    if df is None:
-        st.error("Cannot proceed. Data loading from GitHub failed.")
-        st.stop()
+if new_mrp > 0:
+    try:
+        # Perform calculations
+        (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
+         final_commission, commission_rate, settled_amount, 
+         taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
+         
+        # --- DISPLAY RESULTS ---
+        st.subheader("3. Calculated Financial Metrics")
         
-    st.header("Analyze Existing Product Profitability")
+        col_sale, col_gt, col_customer = st.columns(3)
+        col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
+        col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
+        col_customer.metric(label="Customer Paid Amount", value=f"₹ {customer_paid_amount:,.2f}")
 
-    unique_skus = sorted(df['seller sku code'].unique().tolist())
-    
-    if not unique_skus:
-        st.error("No valid SKUs found in the loaded data to display.")
-        st.stop()
+        st.markdown("<br>", unsafe_allow_html=True) 
 
-    selected_sku = st.selectbox(
-        "**1. Search & Select SKU:** (Type to filter list)",
-        unique_skus
-    )
-
-    if selected_sku:
-        sku_data = df[df['seller sku code'] == selected_sku].iloc[0]
+        col_commission, col_royalty, col_taxable = st.columns(3)
         
-        st.subheader("2. Input Values")
-        
-        mrp_from_data = sku_data['mrp']
-        discount_from_data = sku_data['discount'] 
-
-        col_mrp, col_discount = st.columns(2)
-        
-        col_mrp.metric(label="Product MRP (from data)", value=f"₹ {mrp_from_data:,.2f}")
-        
-        discount = col_discount.number_input(
-            "Enter Discount **Amount** (₹) (Value from data loaded)",
-            min_value=0.0,
-            max_value=mrp_from_data,
-            value=discount_from_data, 
-            step=10.0,
-            key="existing_discount"
+        col_commission.metric(
+            label=f"Total Commission (Rate {commission_rate*100:.0f}%, Incl. 18% Tax)",
+            value=f"₹ {final_commission:,.2f}",
+        )
+        col_royalty.metric(
+            label=f"Royalty Fee ({apply_royalty})",
+            value=f"₹ {royalty_fee:,.2f}",
+        )
+        col_taxable.metric(
+            label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
+            value=f"₹ {taxable_amount_value:,.2f}",
         )
         
-        try:
-            # Perform calculations 
-            (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-             final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
-             
-            # Display Results
-            st.markdown("---")
-            st.subheader("3. Calculated Financial Metrics")
-            
-            col_sale, col_gt, col_customer = st.columns(3)
-            col_sale.metric(label="Sale Price", value=f"₹ {sale_price:,.2f}")
-            col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
-            col_customer.metric(label="Customer Paid Amount", value=f"₹ {customer_paid_amount:,.2f}")
-
-            st.markdown("<br>", unsafe_allow_html=True) 
-
-            col_commission, col_royalty, col_taxable = st.columns(3)
-            
-            col_commission.metric(
-                label="Total Commission (Incl. 18% Tax)",
-                value=f"₹ {final_commission:,.2f}",
-            )
-            col_royalty.metric(
-                label=f"Royalty Fee ({apply_royalty})",
-                value=f"₹ {royalty_fee:,.2f}",
-            )
-            col_taxable.metric(
-                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
-                value=f"₹ {taxable_amount_value:,.2f}",
-            )
-            
-            st.markdown("<br>", unsafe_allow_html=True) 
-            
-            col_tds, col_tcs, col_placeholder = st.columns(3)
-            
-            col_tds.metric(
-                label="TDS (Taxable Value * 0.1%)",
-                value=f"₹ {tds:,.2f}"
-            )
-            
-            col_tcs.metric(
-                label="TCS (Tax Amount * 10%)",
-                value=f"₹ {tcs:,.2f}"
-            )
-            
-            st.markdown("---")
-
-            col_settled, col_net_profit = st.columns(2)
-
-            col_settled.metric(
-                label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
-                value=f"₹ {settled_amount:,.2f}",
-                delta_color="off"
-            )
-            
-            col_net_profit.metric(
-                label="**NET PROFIT (After Product Cost)**",
-                value=f"₹ {net_profit:,.2f}",
-                delta=-product_cost,
-                delta_color="inverse"
-            )
+        st.markdown("<br>", unsafe_allow_html=True) 
         
-        except ValueError as e:
-            st.error(str(e))
-        except KeyError as e:
-            st.error(f"Calculation Error: Column not found: {e}. Please check the column name in your data.")
+        col_tds, col_tcs, col_placeholder = st.columns(3)
+        
+        col_tds.metric(
+            label="TDS (0.1% on Taxable Value)",
+            value=f"₹ {tds:,.2f}"
+        )
+        
+        col_tcs.metric(
+            label="TCS (10% on Tax Amount)",
+            value=f"₹ {tcs:,.2f}"
+        )
+        
+        st.markdown("---")
 
+        col_settled, col_net_profit = st.columns(2)
 
-    else:
-        st.info("Please select a SKU to begin the calculation.")
+        col_settled.metric(
+            label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
+            value=f"₹ {settled_amount:,.2f}",
+            delta_color="off"
+        )
+        
+        col_net_profit.metric(
+            label="**NET PROFIT (After Product Cost)**",
+            value=f"₹ {net_profit:,.2f}",
+            delta=-product_cost,
+            delta_color="inverse"
+        )
 
-
-# --- MODE 2: NEW LISTINGS (Manual Entry) (No Change) ---
-elif mode == "New Listings (Manual Input)":
-    st.header("New Listing Profitability Simulation")
-    st.info("Enter your desired MRP and Discount to calculate the net profit.")
-
-    col_mrp_in, col_discount_in = st.columns(2)
-    
-    new_mrp = col_mrp_in.number_input(
-        "Enter Product **MRP** (₹)",
-        min_value=1.0,
-        value=1500.0,
-        step=100.0,
-        key="new_mrp"
-    )
-
-    new_discount = col_discount_in.number_input(
-        "Enter Discount **Amount** (₹)",
-        min_value=0.0,
-        max_value=new_mrp,
-        value=0.0,
-        step=10.0,
-        key="new_discount"
-    )
-
-    if new_mrp > 0:
-        try:
-            (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-             final_commission, commission_rate, settled_amount, 
-             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
-             
-            st.markdown("---")
-            st.subheader("2. Calculated Financial Metrics")
-            
-            col_sale, col_gt, col_customer = st.columns(3)
-            col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
-            col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
-            col_customer.metric(label="Customer Paid Amount", value=f"₹ {customer_paid_amount:,.2f}")
-
-            st.markdown("<br>", unsafe_allow_html=True) 
-
-            col_commission, col_royalty, col_taxable = st.columns(3)
-            
-            col_commission.metric(
-                label="Total Commission (Incl. 18% Tax)",
-                value=f"₹ {final_commission:,.2f}",
-            )
-            col_royalty.metric(
-                label=f"Royalty Fee ({apply_royalty})",
-                value=f"₹ {royalty_fee:,.2f}",
-            )
-            col_taxable.metric(
-                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
-                value=f"₹ {taxable_amount_value:,.2f}",
-            )
-            
-            st.markdown("<br>", unsafe_allow_html=True) 
-            
-            col_tds, col_tcs, col_placeholder = st.columns(3)
-            
-            col_tds.metric(
-                label="TDS (Taxable Value * 0.1%)",
-                value=f"₹ {tds:,.2f}"
-            )
-            
-            col_tcs.metric(
-                label="TCS (Tax Amount * 10%)",
-                value=f"₹ {tcs:,.2f}"
-            )
-            
-            st.markdown("---")
-
-            col_settled, col_net_profit = st.columns(2)
-
-            col_settled.metric(
-                label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
-                value=f"₹ {settled_amount:,.2f}",
-                delta_color="off"
-            )
-            
-            col_net_profit.metric(
-                label="**NET PROFIT (After Product Cost)**",
-                value=f"₹ {net_profit:,.2f}",
-                delta=-product_cost,
-                delta_color="inverse"
-            )
-
-        except ValueError as e:
-            st.error(str(e))
+    except ValueError as e:
+        st.error(str(e))
+else:
+    st.info("Please enter a valid MRP to start the calculation.")
