@@ -3,7 +3,7 @@ import streamlit as st
 import numpy as np
 
 # Set page config for wide layout and minimum gaps, using the specified full title
-FULL_TITLE = "Myntra/FirstCry/Ajio Profit Calculator" 
+FULL_TITLE = "Vardhman Wool Store E.com Calculator" 
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness (Scroll Reduction) ---
@@ -393,3 +393,4 @@ if new_mrp > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP to start the calculation.")
+
