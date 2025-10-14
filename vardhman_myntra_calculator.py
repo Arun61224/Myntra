@@ -116,14 +116,13 @@ product_cost = st.sidebar.number_input(
     help="This cost is deducted at the end to calculate Net Profit."
 )
 
-# NEW: Margin Target Input
-product_margin_target = st.sidebar.number_input(
-    "Desired Margin Target (%)",
+# NEW: Margin Target Input in Rupees
+product_margin_target_rs = st.sidebar.number_input(
+    "Desired Margin Target (₹)",
     min_value=0.0,
-    max_value=100.0,
-    value=20.0,  # Default value set to 20%
-    step=1.0,
-    help="Enter your target profit margin percentage on Product Cost."
+    value=100.0,  # Default value set to 100 Rs
+    step=10.0,
+    help="Enter your target profit amount in Rupees."
 )
 
 st.sidebar.markdown("---")
@@ -160,20 +159,16 @@ if new_mrp > 0:
          commission_rate, settled_amount, taxable_amount_value, 
          net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
          
-        # Calculate Margin Difference for display
-        target_profit = product_cost * (product_margin_target / 100)
+        # Calculate Margin Difference for display using the new Rupee target
+        target_profit = product_margin_target_rs
+        delta_value = net_profit - target_profit
         
-        # Determine the current profit margin on Product Cost
-        if product_cost > 0:
-            current_margin_percent = (net_profit / product_cost) * 100
-            delta_value = net_profit - target_profit
-            delta_label = f"Target Profit: ₹ {target_profit:,.2f}"
-            delta_color = "normal" if net_profit >= target_profit else "inverse"
-        else:
-            current_margin_percent = 0.0 if net_profit <= 0 else 100.0
-            delta_value = None
-            delta_label = "Product Cost is zero."
-            delta_color = "off"
+        # Determine current margin % for display
+        current_margin_percent = (net_profit / product_cost) * 100 if product_cost > 0 else 0.0
+
+        # Set Delta appearance
+        delta_label = f"vs Target: ₹ {delta_value:,.2f}"
+        delta_color = "normal" if net_profit >= target_profit else "inverse"
             
         # --- DISPLAY RESULTS ---
         st.subheader("3. Calculated Financial Metrics")
@@ -232,7 +227,7 @@ if new_mrp > 0:
         col_net_profit.metric(
             label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin on Cost)**",
             value=f"₹ {net_profit:,.2f}",
-            delta=f"vs Target: ₹ {delta_value:,.2f}" if delta_value is not None else delta_label,
+            delta=delta_label,
             delta_color=delta_color
         )
 
