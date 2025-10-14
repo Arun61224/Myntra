@@ -1,13 +1,14 @@
 import pandas as pd
 import streamlit as st
 import numpy as np
-import os # To check for file existence
 
 # --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-SKU_FILE_NAME = "sku.txt" 
-# Common column names to check (in lowercase) for flexibility
+# 🚀 GITHUB RAW URL MAPPED HERE 🚀
+SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/refs/heads/main/sku.txt" 
+
+# Flexible Column Names (to handle variations like 'MRP', 'mrp', 'Product MRP', etc.)
 MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] 
 SKU_COLUMNS = ['seller sku code', 'sku', 'sku code', 'seller sku'] 
 DISCOUNT_COLUMNS = ['discount', 'discount amount', 'sale discount']
@@ -15,7 +16,7 @@ DISCOUNT_COLUMNS = ['discount', 'discount amount', 'sale discount']
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
-    # GT Charge logic
+    """Calculates GT Charge based on Sale Price tiers."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -24,7 +25,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    # Commission rate logic
+    """Determines the commission rate based on Customer Paid Amount."""
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -39,7 +40,7 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    # Taxable value logic
+    """Calculates Taxable Value and Invoice Tax Rate (GST)."""
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -52,7 +53,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     return taxable_amount, tax_rate
 
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    # Performs all sequential calculations
+    """Performs all sequential calculations for profit analysis."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -60,24 +61,29 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # ... rest of the calculation logic ...
+    # 1. Royalty Fee Logic
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
     
+    # 2. Commission 
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
+    # 3. Taxable Amount Value
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
+    # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
+    # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
     
+    # 6. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -85,60 +91,53 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
-# --- DATA LOADING (Loads Local sku.txt File) ---
+# --- DATA LOADING (Loads File from GitHub URL) ---
 @st.cache_data
-def load_data(file_name):
-    """Loads and cleans the Myntra data from the local SKU text file (assuming CSV structure)."""
+def load_data(file_url):
+    """Loads and cleans the Myntra data from the GitHub URL (assuming CSV structure)."""
     
-    if not os.path.exists(file_name):
-        st.error(f"Data Error: The required file **'{file_name}'** was not found in the script's directory.")
-        st.warning("Please ensure **'sku.txt'** is placed in the same folder as **'vardhman_myntra_calculator.py'** and contains your data.")
-        return None
+    st.info(f"Attempting to load data from: **{file_url}**")
         
     try:
-        # Read the local file, assuming it's CSV structure
-        df = pd.read_csv(file_name) 
+        # pd.read_csv can directly read from a URL
+        df = pd.read_csv(file_url) 
         
         if df.empty:
-            st.error(f"Data Error: The file **'{file_name}'** is empty or contains no data rows.")
+            st.error("Data Error: The loaded file is empty or contains no data rows.")
             return None
         
-        # Clean column names (strip whitespace and convert to lower)
+        # Clean column names
         df.columns = df.columns.str.strip().str.lower()
         
         # --- FLEXIBLE COLUMN DETECTION ---
-        
-        # 1. Find the correct MRP column name
         mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
-        # 2. Find the correct SKU column name
         sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
-        # 3. Find the correct Discount column name
         discount_col_name = next((col for col in DISCOUNT_COLUMNS if col in df.columns), None)
         
         required = {'MRP': mrp_col_name, 'SKU': sku_col_name, 'Discount': discount_col_name}
         missing = [key for key, val in required.items() if val is None]
         
         if missing:
-            st.error(f"Data Error: Could not find required columns in **'{file_name}'**.")
-            st.warning(f"Missing Columns: {', '.join(missing)}")
-            st.warning(f"Available Columns: {df.columns.tolist()}")
+            st.error(f"Data Error: Could not find required columns in the GitHub file.")
+            st.warning(f"Missing Columns: {', '.join(missing)}. Please check column names in your sku.txt (e.g., must contain 'mrp', 'sku code', 'discount').")
             return None
             
-        # 4. Rename columns to standard names
+        # Rename columns to standard names
         df.rename(columns={mrp_col_name: 'mrp', sku_col_name: 'seller sku code', discount_col_name: 'discount'}, inplace=True)
 
-        # 5. Clean data and convert to numeric
+        # Clean data and convert to numeric
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
-        df['discount'] = pd.to_numeric(df['discount'], errors='coerce').fillna(0) # Default discount to 0 if non-numeric
+        df['discount'] = pd.to_numeric(df['discount'], errors='coerce').fillna(0) 
         
         df.dropna(subset=['mrp', 'seller sku code'], inplace=True)
         df = df.drop_duplicates(subset=['seller sku code'], keep='first')
         
+        st.success(f"Data loaded successfully! Total {len(df)} unique SKUs found.")
         return df
         
     except Exception as e:
-        st.error(f"An unexpected error occurred during file processing: {e}")
-        st.warning(f"Please verify that the **'{file_name}'** file is saved correctly as a comma-separated text file (CSV format).")
+        st.error(f"An error occurred while loading data from GitHub: {e}")
+        st.warning("Please ensure the GitHub file is **public** and the URL is the correct **RAW** link.")
         return None
 
 
@@ -146,9 +145,15 @@ def load_data(file_name):
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
 
+# Load data automatically at the start of the app
+df = load_data(SKU_FILE_NAME)
+
 # --- CONFIGURATION BAR ---
 st.sidebar.header("Data Source")
-st.sidebar.info(f"Using local file **'{SKU_FILE_NAME}'** for SKU, MRP, and Discount data.")
+if df is not None:
+    st.sidebar.success("Data loaded from GitHub URL.")
+else:
+    st.sidebar.error("Data loading failed. Check error above.")
 
 st.sidebar.header("Calculation Settings")
 
@@ -181,21 +186,19 @@ mode = st.selectbox(
 st.markdown("---")
 
 
-# --- MODE 1: EXISTING LISTINGS (Reads from sku.txt) ---
+# --- MODE 1: EXISTING LISTINGS (Reads from GitHub Data) ---
 if mode == "Existing Listings (Search SKU)":
-        
-    # Load data from sku.txt
-    df = load_data(SKU_FILE_NAME)
     
     if df is None:
-        st.stop() # Stop execution if data loading failed
+        st.error("Cannot proceed. Data loading from GitHub failed.")
+        st.stop()
         
     st.header("Analyze Existing Product Profitability")
 
     unique_skus = sorted(df['seller sku code'].unique().tolist())
     
     if not unique_skus:
-        st.error("No valid SKUs found in the data file to display.")
+        st.error("No valid SKUs found in the loaded data to display.")
         st.stop()
 
     selected_sku = st.selectbox(
@@ -209,18 +212,17 @@ if mode == "Existing Listings (Search SKU)":
         st.subheader("2. Input Values")
         
         mrp_from_data = sku_data['mrp']
-        discount_from_data = sku_data['discount'] # Fetch discount from data
+        discount_from_data = sku_data['discount'] 
 
         col_mrp, col_discount = st.columns(2)
         
         col_mrp.metric(label="Product MRP (from data)", value=f"₹ {mrp_from_data:,.2f}")
         
-        # Initialize discount input with value from data
         discount = col_discount.number_input(
             "Enter Discount **Amount** (₹) (Value from data loaded)",
             min_value=0.0,
             max_value=mrp_from_data,
-            value=discount_from_data, # Use the discount from the file
+            value=discount_from_data, 
             step=10.0,
             key="existing_discount"
         )
@@ -235,7 +237,6 @@ if mode == "Existing Listings (Search SKU)":
             st.markdown("---")
             st.subheader("3. Calculated Financial Metrics")
             
-            # Display metrics... (same as previous code)
             col_sale, col_gt, col_customer = st.columns(3)
             col_sale.metric(label="Sale Price", value=f"₹ {sale_price:,.2f}")
             col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
@@ -304,7 +305,6 @@ elif mode == "New Listings (Manual Input)":
     st.header("New Listing Profitability Simulation")
     st.info("Enter your desired MRP and Discount to calculate the net profit.")
 
-    # Input fields for MRP and Discount
     col_mrp_in, col_discount_in = st.columns(2)
     
     new_mrp = col_mrp_in.number_input(
@@ -326,12 +326,10 @@ elif mode == "New Listings (Manual Input)":
 
     if new_mrp > 0:
         try:
-            # Perform calculations... (same as previous code)
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
              taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
              
-            # Display Results... (same as previous code)
             st.markdown("---")
             st.subheader("2. Calculated Financial Metrics")
             
