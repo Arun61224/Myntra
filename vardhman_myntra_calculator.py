@@ -373,13 +373,15 @@ if new_mrp > 0:
             label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
             value=f"₹ {taxable_amount_value:,.2f}",
         )
+        # TDS display update to ensure positive sign
         col2_r2.metric(
             label="TDS (0.1%)",
-            value=f"₹ {tds:,.2f}"
+            value=f"₹ {abs(tds):,.2f}"
         )
+        # TCS display update to ensure positive sign
         col3_r2.metric(
             label="TCS (10% on Tax Amt)",
-            value=f"₹ {tcs:,.2f}"
+            value=f"₹ {abs(tcs):,.2f}"
         )
 
         st.divider() 
