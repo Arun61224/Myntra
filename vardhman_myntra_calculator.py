@@ -83,8 +83,9 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
     """Performs all sequential calculations for profit analysis based on platform."""
     sale_price = mrp - discount
     if sale_price < 0:
-        raise ValueError("Discount Amount cannot be greater than MRP.")
-        
+        # Return negative profit if sale price is invalid, handles edge case in search
+        return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0)
+    
     # --- INITIAL VALUES ---
     gt_charge = 0.0
     royalty_fee = 0.0
@@ -189,6 +190,42 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
             commission_rate, settled_amount, taxable_amount_value, 
             net_profit, tds, tcs, invoice_tax_rate)
 
+# --- NEW FUNCTION: Find Discount for Target Profit ---
+def find_discount_for_target_profit(mrp, target_profit, apply_royalty, apply_marketing_fee, product_cost, platform):
+    """Finds the maximum discount allowed (in 0.1 steps) to achieve at least the target profit."""
+    
+    # Calculate max possible profit (at 0 discount)
+    (_, _, _, _, _, _, _, _, _, _, initial_profit, _, _, _) = perform_calculations(mrp, 0.0, apply_royalty, apply_marketing_fee, product_cost, platform)
+
+    if initial_profit < target_profit:
+        # Target profit is unachievable even with zero discount
+        return None, initial_profit, 0.0 # required_discount, max_profit, max_discount_percent
+    
+    # Binary search/Iteration setup
+    discount_step = 1.0 # Start with larger step
+    required_discount = 0.0
+    
+    # Iteratively increase discount until profit drops below target
+    while required_discount <= mrp:
+        # The relationship is inverse: more discount -> less profit.
+        (_, _, _, _, _, _, _, _, _, _, current_profit, _, _, _) = perform_calculations(mrp, required_discount, apply_royalty, apply_marketing_fee, product_cost, platform)
+        
+        if current_profit < target_profit:
+            # We crossed the target. The best discount is the previous step.
+            # Use the previous discount to calculate final metrics
+            final_discount = max(0.0, required_discount - discount_step)
+            # Re-calculate with the final discount for accurate output
+            (_, _, _, _, _, _, _, _, settled_amount, _, final_profit, _, _, _) = perform_calculations(mrp, final_discount, apply_royalty, apply_marketing_fee, product_cost, platform)
+            
+            discount_percent = (final_discount / mrp) * 100
+            return final_discount, final_profit, discount_percent
+        
+        required_discount += discount_step
+
+    # Fallback for full MRP discount case
+    discount_percent = (mrp / mrp) * 100
+    return mrp, current_profit, discount_percent
+
 
 # --- 2. STREAMLIT APP STRUCTURE ---
 
@@ -207,6 +244,15 @@ st.divider()
 # --- CONFIGURATION BAR (Sidebar) ---
 st.sidebar.header("Settings")
 
+# NEW: Calculation Mode Selector
+calculation_mode = st.sidebar.radio(
+    "Calculation Mode:",
+    ('Profit Calculation (for given Discount)', 'Target Discount Finder (for given Profit)'),
+    index=0, 
+    label_visibility="visible"
+)
+st.sidebar.divider() 
+
 # Royalty Fee Radio Button 
 royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price' # Ajio/FirstCry uses Sale Price for 10%
 royalty_label = f"Royalty Fee (10% of {royalty_base})?"
@@ -220,11 +266,12 @@ apply_royalty = st.sidebar.radio(
     label_visibility="visible"
 )
 
-# --- NEW: Marketing Fee Radio Button ---
+# --- Marketing Fee Radio Button (Only relevant for Myntra, but included in logic for all) ---
+apply_marketing_fee_default = 'Yes (4%)' if platform_selector == 'Myntra' else 'No (0%)'
 apply_marketing_fee = st.sidebar.radio(
     "Marketing Fee (Myntra 4% of CPA)?", 
     ('Yes (4%)', 'No (0%)'),
-    index=0, # Default to Yes
+    index=0 if apply_marketing_fee_default.startswith('Yes') else 1,
     horizontal=True,
     label_visibility="visible"
 )
@@ -233,16 +280,16 @@ apply_marketing_fee = st.sidebar.radio(
 product_cost = st.sidebar.number_input(
     "Product Cost (₹)",
     min_value=0.0,
-    value=0.0,
+    value=1000.0,
     step=10.0,
     label_visibility="visible"
 )
 
-# Margin Target Input in Rupees
+# Target Margin Input (Used in both modes)
 product_margin_target_rs = st.sidebar.number_input(
-    "Target Margin (₹)",
+    "Target Net Profit (₹)",
     min_value=0.0,
-    value=100.0,
+    value=200.0,
     step=10.0,
     label_visibility="visible"
 )
@@ -255,27 +302,57 @@ col_mrp_in, col_discount_in = st.columns(2)
 new_mrp = col_mrp_in.number_input(
     "Product MRP (₹)",
     min_value=1.0,
-    value=1500.0,
+    value=2500.0,
     step=100.0,
     key="new_mrp",
     label_visibility="visible"
 )
 
-new_discount = col_discount_in.number_input(
-    "Discount Amt (₹)",
-    min_value=0.0,
-    max_value=new_mrp,
-    value=0.0,
-    step=10.0,
-    key="new_discount",
-    label_visibility="visible"
-)
+# Conditional Discount Input based on Calculation Mode
+if calculation_mode == 'Profit Calculation (for given Discount)':
+    new_discount = col_discount_in.number_input(
+        "Discount Amt (₹)",
+        min_value=0.0,
+        max_value=new_mrp,
+        value=500.0,
+        step=10.0,
+        key="new_discount_manual",
+        label_visibility="visible"
+    )
+else:
+    # In Target Discount Finder mode, we don't need a manual discount input
+    col_discount_in.info(f"Targeting a Net Profit of ₹ {product_margin_target_rs:,.2f}...")
+    new_discount = 0.0 # Placeholder, will be calculated later
 
 st.divider() 
 
-if new_mrp > 0:
+if new_mrp > 0 and product_cost > 0:
     try:
-        # Perform calculations
+        
+        calculated_discount = 0.0
+        final_profit = 0.0
+        
+        # --- MODE 1: Target Discount Finder ---
+        if calculation_mode == 'Target Discount Finder (for given Profit)':
+            
+            # Find the required discount to meet the target profit
+            target_profit = product_margin_target_rs
+            
+            calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
+                new_mrp, target_profit, apply_royalty, apply_marketing_fee, product_cost, platform_selector
+            )
+
+            if calculated_discount is None:
+                # Target unachievable
+                st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
+                st.stop()
+            
+            # Use the calculated discount for the main calculation
+            new_discount = calculated_discount
+            
+        # --- MODE 2: Profit Calculation (Direct) ---
+        
+        # Perform calculations using the actual or calculated discount
         (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
          marketing_fee_base, marketing_fee_rate, final_commission, 
          commission_rate, settled_amount, taxable_amount_value, 
@@ -294,9 +371,35 @@ if new_mrp > 0:
         
         # Section 2: Sales and Revenue (3 columns)
         st.markdown("###### **2. Sales and Revenue**")
-        col_sale, col_gt, col_customer = st.columns(3)
+        col_mrp_out, col_discount_out, col_sale = st.columns(3)
         
+        # Display MRP in the results section too
+        col_mrp_out.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
+
+        if calculation_mode == 'Target Discount Finder (for given Profit)':
+            # Display calculated discount in the main area
+            discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+            col_discount_out.metric(
+                label="Required Discount", 
+                value=f"₹ {new_discount:,.2f}",
+                delta=f"{discount_percent:,.2f}% of MRP",
+                delta_color="off"
+            )
+        else:
+             # Display manual discount as entered
+            discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+            col_discount_out.metric(
+                label="Discount Amount", 
+                value=f"₹ {new_discount:,.2f}",
+                delta=f"{discount_percent:,.2f}% of MRP",
+                delta_color="off"
+            )
+            
         col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
+        
+        st.divider()
+        
+        col_gt, col_customer = st.columns(2)
         
         # GT Charge/Fixed Fee display logic
         if platform_selector == 'Myntra':
@@ -407,6 +510,4 @@ if new_mrp > 0:
     except ValueError as e:
         st.error(str(e))
 else:
-    st.info("Please enter a valid MRP to start the calculation.")
-
-
+    st.info("Please enter a valid MRP and Product Cost to start the calculation.")
