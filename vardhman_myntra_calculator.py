@@ -41,7 +41,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CALCULATION LOGIC FUNCTIONS ---
+# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -127,7 +127,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         if apply_royalty == 'Yes':
             royalty_fee = sale_price * 0.10
         
-        # GT Charge & Marketing are zero (as per user request, GT is removed)
+        # GT Charge & Marketing are zero
         gt_charge = 0.0 
         marketing_fee_base = 0.0 
         
@@ -254,12 +254,23 @@ if new_mrp > 0:
         col_sale, col_gt, col_customer = st.columns(3)
         
         col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
-        col_gt.metric(
-            label="GT Charge", 
-            value=f"₹ {gt_charge:,.2f}",
-            delta="Myntra Only" if platform_selector=='Myntra' else "Ajio: N/A",
-            delta_color="off"
-        )
+        
+        # Cleaned GT Charge display for Ajio
+        if platform_selector == 'Myntra':
+            col_gt.metric(
+                label="GT Charge", 
+                value=f"₹ {gt_charge:,.2f}",
+                delta="Myntra Only",
+                delta_color="off"
+            )
+        else:
+            # For Ajio, display only the 0.00 value without any delta text
+            col_gt.metric(
+                label="GT Charge", 
+                value=f"₹ {gt_charge:,.2f}", # This will be 0.00
+                delta_color="off"
+            )
+            
         col_customer.metric(label="**Customer Paid Amt (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
         st.divider() 
@@ -284,10 +295,10 @@ if new_mrp > 0:
                 label="**Flat Deduction (42% on Sale Price)**",
                 value=f"₹ {final_commission:,.2f}",
             )
+             # Cleaned Marketing/Other Fees display for Ajio
              col2_r1.metric(
                 label="Marketing/Other Fees", 
                 value="₹ 0.00",
-                delta="Included in 42% deduction",
                 delta_color="off"
             )
         
