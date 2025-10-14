@@ -1,18 +1,21 @@
 import pandas as pd
 import streamlit as st
 import numpy as np
+import os # To check for file existence
 
-# --- 1. CONFIGURATION AND DATA LOADING ---
+# --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
 SKU_FILE_NAME = "sku.txt" 
-MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] # Common column names to check (in lowercase)
-SKU_COLUMNS = ['seller sku code', 'sku', 'sku code'] # Common SKU column names to check (in lowercase)
+# Common column names to check (in lowercase) for flexibility
+MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] 
+SKU_COLUMNS = ['seller sku code', 'sku', 'sku code', 'seller sku'] 
+DISCOUNT_COLUMNS = ['discount', 'discount amount', 'sale discount']
 
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
-    """Calculates GT Charge based on Sale Price tiers (0-500: 54, 500-1000: 94, 1000+: 171)."""
+    # GT Charge logic
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -21,7 +24,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    # Commission rate logic remains the same
+    # Commission rate logic
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -36,7 +39,7 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    # Taxable value logic remains the same
+    # Taxable value logic
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -48,10 +51,8 @@ def calculate_taxable_amount_value(customer_paid_amount):
     
     return taxable_amount, tax_rate
 
-
-# --- MAIN CALCULATION FUNCTION (No Change) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    """Performs all sequential calculations for a given MRP and Discount."""
+    # Performs all sequential calculations
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -59,29 +60,24 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic
+    # ... rest of the calculation logic ...
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
     
-    # 2. Commission 
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
-    # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
     
-    # 6. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -89,18 +85,22 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
             taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
 
 
-# --- DATA LOADING (CSV File - Reads UPLOADED file) ---
+# --- DATA LOADING (Loads Local sku.txt File) ---
 @st.cache_data
-def load_data(uploaded_file):
-    """Loads and cleans the Myntra data from the uploaded CSV file."""
-    if uploaded_file is None:
+def load_data(file_name):
+    """Loads and cleans the Myntra data from the local SKU text file (assuming CSV structure)."""
+    
+    if not os.path.exists(file_name):
+        st.error(f"Data Error: The required file **'{file_name}'** was not found in the script's directory.")
+        st.warning("Please ensure **'sku.txt'** is placed in the same folder as **'vardhman_myntra_calculator.py'** and contains your data.")
         return None
         
     try:
-        df = pd.read_csv(uploaded_file)
+        # Read the local file, assuming it's CSV structure
+        df = pd.read_csv(file_name) 
         
         if df.empty:
-            st.error("Data Error: The uploaded file is empty or contains no data rows.")
+            st.error(f"Data Error: The file **'{file_name}'** is empty or contains no data rows.")
             return None
         
         # Clean column names (strip whitespace and convert to lower)
@@ -110,53 +110,35 @@ def load_data(uploaded_file):
         
         # 1. Find the correct MRP column name
         mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
-        if mrp_col_name is None:
-            st.error("Data Error: Could not find the MRP column.")
-            st.warning(f"Available Columns: {df.columns.tolist()}. Please ensure one of these is the MRP column: {MRP_COLUMNS}")
-            return None
-        
         # 2. Find the correct SKU column name
         sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
-        if sku_col_name is None:
-            st.error("Data Error: Could not find the SKU column.")
-            st.warning(f"Available Columns: {df.columns.tolist()}. Please ensure one of these is the SKU column: {SKU_COLUMNS}")
+        # 3. Find the correct Discount column name
+        discount_col_name = next((col for col in DISCOUNT_COLUMNS if col in df.columns), None)
+        
+        required = {'MRP': mrp_col_name, 'SKU': sku_col_name, 'Discount': discount_col_name}
+        missing = [key for key, val in required.items() if val is None]
+        
+        if missing:
+            st.error(f"Data Error: Could not find required columns in **'{file_name}'**.")
+            st.warning(f"Missing Columns: {', '.join(missing)}")
+            st.warning(f"Available Columns: {df.columns.tolist()}")
             return None
             
-        # 3. Rename columns to standard names ('mrp' and 'seller sku code') for rest of the code
-        if mrp_col_name != 'mrp':
-            df.rename(columns={mrp_col_name: 'mrp'}, inplace=True)
-            
-        if sku_col_name != 'seller sku code':
-            df.rename(columns={sku_col_name: 'seller sku code'}, inplace=True)
+        # 4. Rename columns to standard names
+        df.rename(columns={mrp_col_name: 'mrp', sku_col_name: 'seller sku code', discount_col_name: 'discount'}, inplace=True)
 
-        # 4. Clean data
+        # 5. Clean data and convert to numeric
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
+        df['discount'] = pd.to_numeric(df['discount'], errors='coerce').fillna(0) # Default discount to 0 if non-numeric
+        
         df.dropna(subset=['mrp', 'seller sku code'], inplace=True)
         df = df.drop_duplicates(subset=['seller sku code'], keep='first')
         
         return df
         
-    except pd.errors.EmptyDataError:
-        st.error("Data Error: The uploaded file is empty.")
-        return None
     except Exception as e:
         st.error(f"An unexpected error occurred during file processing: {e}")
-        st.warning("Please verify that the file is saved correctly as a **CSV** file.")
-        return None
-
-# --- FUNCTION: Load SKUs from TXT File (For Mapping) ---
-def load_sku_list(sku_file_name):
-    """Loads a list of SKUs from a text file, one SKU per line. Returns None on FileNotFoundError."""
-    try:
-        with open(sku_file_name, 'r') as f:
-            # Read lines, strip whitespace (including newline), and filter out empty lines
-            skus = [line.strip() for line in f if line.strip()]
-        return skus
-    except FileNotFoundError:
-        # Return None gracefully if file is not found
-        return None
-    except Exception as e:
-        st.error(f"Error loading SKU filter file: {e}")
+        st.warning(f"Please verify that the **'{file_name}'** file is saved correctly as a comma-separated text file (CSV format).")
         return None
 
 
@@ -164,14 +146,9 @@ def load_sku_list(sku_file_name):
 
 st.title("🛍️ Myntra Calculator for **Vardhman Wool Store**")
 
-# --- CONFIGURATION BAR (Includes File Uploader) ---
-st.sidebar.header("Data Upload")
-
-# FILE UPLOADER
-uploaded_file = st.sidebar.file_uploader(
-    "Upload Myntra Data CSV File", 
-    type=["csv"]
-)
+# --- CONFIGURATION BAR ---
+st.sidebar.header("Data Source")
+st.sidebar.info(f"Using local file **'{SKU_FILE_NAME}'** for SKU, MRP, and Discount data.")
 
 st.sidebar.header("Calculation Settings")
 
@@ -204,42 +181,18 @@ mode = st.selectbox(
 st.markdown("---")
 
 
-# --- MODE 1: EXISTING LISTINGS (SKU Select with Search Box) ---
+# --- MODE 1: EXISTING LISTINGS (Reads from sku.txt) ---
 if mode == "Existing Listings (Search SKU)":
-    
-    # CHECK IF FILE IS UPLOADED
-    if uploaded_file is None:
-        st.info("⚠️ Please upload your data file using the **'Upload Myntra Data CSV File'** option in the sidebar to use Existing Listings mode.")
-        st.stop()
         
-    # Load data - load_data will return None if an error occurs
-    df = load_data(uploaded_file)
+    # Load data from sku.txt
+    df = load_data(SKU_FILE_NAME)
     
     if df is None:
         st.stop() # Stop execution if data loading failed
         
     st.header("Analyze Existing Product Profitability")
 
-    # Load and Filter Logic (SKU.TXT MAPPING)
-    sku_list_from_file = load_sku_list(SKU_FILE_NAME)
-    
-    if sku_list_from_file is not None and sku_list_from_file:
-        # Filter the main DataFrame to include only SKUs from the text file
-        df_filtered = df[df['seller sku code'].isin(sku_list_from_file)].copy()
-        
-        if df_filtered.empty:
-            st.warning(f"No matching SKUs found in the uploaded data that are listed in **'{SKU_FILE_NAME}'**. Loading all available SKUs.")
-            unique_skus = sorted(df['seller sku code'].unique().tolist())
-        else:
-            st.info(f"Filtered to **{len(df_filtered)}** SKUs listed in **'{SKU_FILE_NAME}'**.")
-            unique_skus = sorted(df_filtered['seller sku code'].unique().tolist())
-            df = df_filtered # Use the filtered DataFrame for the rest of the calculations
-    else:
-        if sku_list_from_file is None:
-             st.warning(f"SKU filter file **'{SKU_FILE_NAME}'** not found. Loading all SKUs from the uploaded data.")
-        # Fallback: If file not found or empty, use all SKUs from the CSV
-        unique_skus = sorted(df['seller sku code'].unique().tolist())
-    
+    unique_skus = sorted(df['seller sku code'].unique().tolist())
     
     if not unique_skus:
         st.error("No valid SKUs found in the data file to display.")
@@ -256,16 +209,18 @@ if mode == "Existing Listings (Search SKU)":
         st.subheader("2. Input Values")
         
         mrp_from_data = sku_data['mrp']
-        
+        discount_from_data = sku_data['discount'] # Fetch discount from data
+
         col_mrp, col_discount = st.columns(2)
         
         col_mrp.metric(label="Product MRP (from data)", value=f"₹ {mrp_from_data:,.2f}")
         
+        # Initialize discount input with value from data
         discount = col_discount.number_input(
-            "Enter Discount **Amount** (₹)",
+            "Enter Discount **Amount** (₹) (Value from data loaded)",
             min_value=0.0,
             max_value=mrp_from_data,
-            value=0.0,
+            value=discount_from_data, # Use the discount from the file
             step=10.0,
             key="existing_discount"
         )
@@ -280,7 +235,7 @@ if mode == "Existing Listings (Search SKU)":
             st.markdown("---")
             st.subheader("3. Calculated Financial Metrics")
             
-            # Row 1: Sale Price, GT Charge, Customer Paid Amount
+            # Display metrics... (same as previous code)
             col_sale, col_gt, col_customer = st.columns(3)
             col_sale.metric(label="Sale Price", value=f"₹ {sale_price:,.2f}")
             col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
@@ -288,7 +243,6 @@ if mode == "Existing Listings (Search SKU)":
 
             st.markdown("<br>", unsafe_allow_html=True) 
 
-            # Row 2: Commission, Royalty, Taxable Value
             col_commission, col_royalty, col_taxable = st.columns(3)
             
             col_commission.metric(
@@ -306,7 +260,6 @@ if mode == "Existing Listings (Search SKU)":
             
             st.markdown("<br>", unsafe_allow_html=True) 
             
-            # Row 3: TDS and TCS
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
@@ -321,7 +274,6 @@ if mode == "Existing Listings (Search SKU)":
             
             st.markdown("---")
 
-            # Final Payout & Net Profit 
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
@@ -374,16 +326,15 @@ elif mode == "New Listings (Manual Input)":
 
     if new_mrp > 0:
         try:
-            # Perform calculations
+            # Perform calculations... (same as previous code)
             (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
              final_commission, commission_rate, settled_amount, 
              taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
              
-            # Display Results
+            # Display Results... (same as previous code)
             st.markdown("---")
             st.subheader("2. Calculated Financial Metrics")
             
-            # Row 1
             col_sale, col_gt, col_customer = st.columns(3)
             col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
             col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
@@ -391,7 +342,6 @@ elif mode == "New Listings (Manual Input)":
 
             st.markdown("<br>", unsafe_allow_html=True) 
 
-            # Row 2
             col_commission, col_royalty, col_taxable = st.columns(3)
             
             col_commission.metric(
@@ -409,7 +359,6 @@ elif mode == "New Listings (Manual Input)":
             
             st.markdown("<br>", unsafe_allow_html=True) 
             
-            # Row 3: TDS and TCS
             col_tds, col_tcs, col_placeholder = st.columns(3)
             
             col_tds.metric(
@@ -424,7 +373,6 @@ elif mode == "New Listings (Manual Input)":
             
             st.markdown("---")
 
-            # Final Payout & Net Profit
             col_settled, col_net_profit = st.columns(2)
 
             col_settled.metric(
