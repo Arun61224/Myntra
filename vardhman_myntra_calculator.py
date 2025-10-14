@@ -5,8 +5,12 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# 🚀 GITHUB RAW URL MAPPED HERE 🚀
-SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/refs/heads/main/sku.txt" 
+# ⚠️ IMPORTANT: Please verify this URL. The standard format usually uses 'main' instead of 'refs/heads/main'.
+# Example of a better URL format: https://raw.githubusercontent.com/Arun61224/Myntra/main/sku.txt
+SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/main/sku.txt" 
+# Agar upar wala link kaam na kare to neeche wala use karein (aapka original link):
+# SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/refs/heads/main/sku.txt"
+
 
 # Flexible Column Names (to handle variations like 'MRP', 'mrp', 'Product MRP', etc.)
 MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] 
@@ -16,7 +20,6 @@ DISCOUNT_COLUMNS = ['discount', 'discount amount', 'sale discount']
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
-    """Calculates GT Charge based on Sale Price tiers."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -25,7 +28,6 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
-    """Determines the commission rate based on Customer Paid Amount."""
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -40,20 +42,16 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
-    """Calculates Taxable Value and Invoice Tax Rate (GST)."""
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
     else:
         tax_rate = 0.05
         divisor = 1.05
-        
     taxable_amount = customer_paid_amount / divisor
-    
     return taxable_amount, tax_rate
 
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    """Performs all sequential calculations for profit analysis."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -61,29 +59,22 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
     
-    # 2. Commission 
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
-    # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
-    
-    # 6. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -109,7 +100,7 @@ def load_data(file_url):
         # Clean column names
         df.columns = df.columns.str.strip().str.lower()
         
-        # --- FLEXIBLE COLUMN DETECTION ---
+        # --- FLEXIBLE COLUMN DETECTION (FIXED LOGIC) ---
         mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
         sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
         discount_col_name = next((col for col in DISCOUNT_COLUMNS if col in df.columns), None)
@@ -119,7 +110,9 @@ def load_data(file_url):
         
         if missing:
             st.error(f"Data Error: Could not find required columns in the GitHub file.")
-            st.warning(f"Missing Columns: {', '.join(missing)}. Please check column names in your sku.txt (e.g., must contain 'mrp', 'sku code', 'discount').")
+            # This is the crucial part that prevents the KeyError later
+            st.warning(f"Missing Columns: **{', '.join(missing)}**. Available Columns: {df.columns.tolist()}")
+            st.warning(f"Please ensure your sku.txt has columns matching these formats: MRP: {', '.join(MRP_COLUMNS)}; SKU: {', '.join(SKU_COLUMNS)}; Discount: {', '.join(DISCOUNT_COLUMNS)}")
             return None
             
         # Rename columns to standard names
@@ -136,8 +129,8 @@ def load_data(file_url):
         return df
         
     except Exception as e:
-        st.error(f"An error occurred while loading data from GitHub: {e}")
-        st.warning("Please ensure the GitHub file is **public** and the URL is the correct **RAW** link.")
+        st.error(f"An unexpected error occurred while loading data from GitHub: {e}")
+        st.warning("Please ensure the GitHub file is public and the URL is correct.")
         return None
 
 
@@ -233,7 +226,7 @@ if mode == "Existing Listings (Search SKU)":
              final_commission, commission_rate, settled_amount, 
              taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
              
-            # Display Results
+            # Display Results (same as previous code)
             st.markdown("---")
             st.subheader("3. Calculated Financial Metrics")
             
@@ -388,6 +381,3 @@ elif mode == "New Listings (Manual Input)":
 
         except ValueError as e:
             st.error(str(e))
-
-
-
