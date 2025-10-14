@@ -53,7 +53,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic (10% of CPA if 'Yes')
+    # 1. Royalty Fee Logic & Marketing Fee Rate
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
@@ -61,7 +61,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     else:
         marketing_fee_rate = 0.04  # 4% Marketing Fee if Royalty is OFF
         
-    # 2. Marketing Fee Calculation (New Factor)
+    # 2. Marketing Fee Calculation
     marketing_fee_base = customer_paid_amount * marketing_fee_rate
     
     # 3. Commission (Rate determined dynamically, then 18% tax added)
@@ -79,7 +79,6 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     tds = taxable_amount_value * 0.001 
     
     # 6. Final Payment (Settled Amount)
-    # Marketing fee is deducted here along with other charges
     settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
     # 7. Net Profit
@@ -117,6 +116,16 @@ product_cost = st.sidebar.number_input(
     help="This cost is deducted at the end to calculate Net Profit."
 )
 
+# NEW: Margin Target Input
+product_margin_target = st.sidebar.number_input(
+    "Desired Margin Target (%)",
+    min_value=0.0,
+    max_value=100.0,
+    value=20.0,  # Default value set to 20%
+    step=1.0,
+    help="Enter your target profit margin percentage on Product Cost."
+)
+
 st.sidebar.markdown("---")
 
 
@@ -151,6 +160,21 @@ if new_mrp > 0:
          commission_rate, settled_amount, taxable_amount_value, 
          net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
          
+        # Calculate Margin Difference for display
+        target_profit = product_cost * (product_margin_target / 100)
+        
+        # Determine the current profit margin on Product Cost
+        if product_cost > 0:
+            current_margin_percent = (net_profit / product_cost) * 100
+            delta_value = net_profit - target_profit
+            delta_label = f"Target Profit: ₹ {target_profit:,.2f}"
+            delta_color = "normal" if net_profit >= target_profit else "inverse"
+        else:
+            current_margin_percent = 0.0 if net_profit <= 0 else 100.0
+            delta_value = None
+            delta_label = "Product Cost is zero."
+            delta_color = "off"
+            
         # --- DISPLAY RESULTS ---
         st.subheader("3. Calculated Financial Metrics")
         
@@ -206,10 +230,10 @@ if new_mrp > 0:
         )
         
         col_net_profit.metric(
-            label="**NET PROFIT (After Product Cost)**",
+            label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin on Cost)**",
             value=f"₹ {net_profit:,.2f}",
-            delta=-product_cost,
-            delta_color="inverse"
+            delta=f"vs Target: ₹ {delta_value:,.2f}" if delta_value is not None else delta_label,
+            delta_color=delta_color
         )
 
     except ValueError as e:
