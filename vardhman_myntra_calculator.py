@@ -3,11 +3,10 @@ import streamlit as st
 import numpy as np
 
 # Set page config for wide layout and minimum gaps, using the specified full title
-FULL_TITLE = "Myntra Profit Calculator For Vardhman Wool Store"
+FULL_TITLE = "Myntra/Ajio Profit Calculator For Vardhman Wool Store"
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness (Scroll Reduction) ---
-# This CSS section ensures the app fits on one page in 100% zoom.
 st.markdown("""
 <style>
     /* Reduce padding around the entire app */
@@ -41,9 +40,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
+# --- CALCULATION LOGIC FUNCTIONS ---
 
-def calculate_gt_charges(sale_price):
+# Myntra Specific GT Charges
+def calculate_myntra_gt_charges(sale_price):
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -51,7 +51,8 @@ def calculate_gt_charges(sale_price):
     else:
         return 171.00
 
-def get_commission_rate(customer_paid_amount):
+# Myntra Specific Commission Rate (Slab-based)
+def get_myntra_commission_rate(customer_paid_amount):
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -65,7 +66,9 @@ def get_commission_rate(customer_paid_amount):
     else:
         return 0.29 
 
+# GST Taxable Value (Common)
 def calculate_taxable_amount_value(customer_paid_amount):
+    # GST Logic is common for both platforms based on Invoice Value
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -75,36 +78,73 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-def perform_calculations(mrp, discount, apply_royalty, product_cost):
+def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
+    """Performs all sequential calculations for profit analysis based on platform."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
         
-    gt_charge = calculate_gt_charges(sale_price)
-    customer_paid_amount = sale_price - gt_charge
-    
+    # --- INITIAL VALUES ---
+    customer_paid_amount = sale_price
+    gt_charge = 0.0
     royalty_fee = 0.0
-    if apply_royalty == 'Yes':
-        royalty_fee = customer_paid_amount * 0.10
-        marketing_fee_rate = 0.05
-    else:
-        marketing_fee_rate = 0.04
+    marketing_fee_base = 0.0
+    final_commission = 0.0
+    commission_rate = 0.0 # Used for Myntra display only
+    
+    # --- PLATFORM SPECIFIC LOGIC ---
+    if platform == 'Myntra':
         
-    marketing_fee_base = customer_paid_amount * marketing_fee_rate
+        gt_charge = calculate_myntra_gt_charges(sale_price)
+        customer_paid_amount = sale_price - gt_charge # CPA = Sale Price - GT
+        
+        commission_rate = get_myntra_commission_rate(customer_paid_amount)
+        commission_amount_base = customer_paid_amount * commission_rate
+        
+        # Royalty & Marketing
+        if apply_royalty == 'Yes':
+            royalty_fee = customer_paid_amount * 0.10
+            marketing_fee_rate = 0.05
+        else:
+            marketing_fee_rate = 0.04
+        marketing_fee_base = customer_paid_amount * marketing_fee_rate
+        
+        # Final Commission (with 18% tax)
+        commission_tax = commission_amount_base * 0.18
+        final_commission = commission_amount_base + commission_tax
+        
+    elif platform == 'Ajio':
+        
+        # Ajio Logic: 42% Flat Deduction on Selling Price + Royalty
+        commission_rate = 0.42 # Flat combined deduction rate for display
+        
+        # Commission (42% of Sale Price)
+        final_commission = sale_price * 0.42 
+        
+        # Royalty Fee (10% of Sale Price)
+        if apply_royalty == 'Yes':
+            royalty_fee = sale_price * 0.10
+        
+        # GT Charge & Marketing are zero
+        gt_charge = 0.0 
+        marketing_fee_base = 0.0 
+        
+        customer_paid_amount = sale_price # CPA is Sale Price (since no GT charge)
+        
+    # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     
-    commission_rate = get_commission_rate(customer_paid_amount)
-    commission_amount_base = customer_paid_amount * commission_rate
-    commission_tax = commission_amount_base * 0.18
-    final_commission = commission_amount_base + commission_tax
-    
+    # Taxable Amount Value (for GST)
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
+    # TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
+    # Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
+    # Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -115,16 +155,28 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
 
 # --- 2. STREAMLIT APP STRUCTURE ---
 
-# Title is set here
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
+
+# --- PLATFORM SELECTOR ---
+platform_selector = st.radio(
+    "Select Platform:",
+    ('Myntra', 'Ajio'),
+    index=0, 
+    horizontal=True
+)
+st.divider()
 
 # --- CONFIGURATION BAR (Sidebar) ---
 st.sidebar.header("Settings")
 
 # Royalty Fee Radio Button 
+royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
+royalty_label = f"Royalty Fee (10% of {royalty_base})?"
+
+# Royalty Fee is applicable to both
 apply_royalty = st.sidebar.radio(
-    "Royalty Fee (10% of CPA)?",
+    royalty_label,
     ('Yes', 'No'),
     index=0, 
     horizontal=True,
@@ -181,7 +233,7 @@ if new_mrp > 0:
         (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
          marketing_fee_base, marketing_fee_rate, final_commission, 
          commission_rate, settled_amount, taxable_amount_value, 
-         net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
+         net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost, platform_selector)
          
         # Calculate Margin Difference for display
         target_profit = product_margin_target_rs
@@ -198,26 +250,44 @@ if new_mrp > 0:
         st.markdown("###### **2. Sales and Revenue**")
         col_sale, col_gt, col_customer = st.columns(3)
         
-        col_sale.metric(label="Sale Price", value=f"₹ {sale_price:,.2f}")
-        col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
+        col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
+        col_gt.metric(
+            label="GT Charge", 
+            value=f"₹ {gt_charge:,.2f}",
+            delta="Myntra Only" if platform_selector=='Myntra' else "Ajio: N/A",
+            delta_color="off"
+        )
         col_customer.metric(label="**Customer Paid Amt (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-        st.divider() # <<< --- NEW LINE ADDED HERE --- >>>
+        st.divider() 
         
         # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS
         st.markdown("###### **3. Deductions (Charges)**")
         
-        # Row 1 (3 columns): Commission, Marketing, Royalty
+        # Row 1 (3 columns): Commission/Deduction, Marketing/Other, Royalty
         col1_r1, col2_r1, col3_r1 = st.columns(3)
         
-        col1_r1.metric(
-            label=f"Commission ({commission_rate*100:.0f}%+Tax)",
-            value=f"₹ {final_commission:,.2f}",
-        )
-        col2_r1.metric(
-            label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
-            value=f"₹ {marketing_fee_base:,.2f}",
-        )
+        if platform_selector == 'Myntra':
+            col1_r1.metric(
+                label=f"Commission ({commission_rate*100:.0f}%+Tax)",
+                value=f"₹ {final_commission:,.2f}",
+            )
+            col2_r1.metric(
+                label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
+                value=f"₹ {marketing_fee_base:,.2f}",
+            )
+        else: # Ajio specific clean display
+             col1_r1.metric(
+                label="**Flat Deduction (42% on Sale Price)**",
+                value=f"₹ {final_commission:,.2f}",
+            )
+             col2_r1.metric(
+                label="Marketing/Other Fees", 
+                value="₹ 0.00",
+                delta="Included in 42% deduction",
+                delta_color="off"
+            )
+        
         col3_r1.metric(
             label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
             value=f"₹ {royalty_fee:,.2f}",
