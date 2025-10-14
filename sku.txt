@@ -1,4 +1,4 @@
-MRP	SKU	Discount
+mrp	sku code	discount
 1899	DKUC-BSUT-103--12-18 Months-12-18M	100
 1899	DKUC-BSUT-103--18-24 Months-18-24M	100
 1899	DKUC-BSUT-103--2-3 Years-2-3Y	100
