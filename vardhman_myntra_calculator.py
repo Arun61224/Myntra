@@ -142,13 +142,13 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         commission_tax = commission_base * 0.18
         final_commission = commission_base + commission_tax
         
-        # 2. SCM Charges (Fixed Fee: 95 + 18% GST)
+        # 2. SCM Charges (Fixed Fee: 95 + 18% GST) - Displayed as gt_charge
         scm_base = 95.0
         scm_tax = scm_base * 0.18
-        gt_charge = scm_base + scm_tax # Using gt_charge for SCM
+        gt_charge = scm_base + scm_tax 
         
         # CPA calculation
-        customer_paid_amount = sale_price # In Ajio's sheet, fixed charges are deducted later.
+        customer_paid_amount = sale_price # Invoice Value = Sale Price 
         
         # 3. Royalty Fee (10% on Sale Price)
         if apply_royalty == 'Yes':
@@ -162,13 +162,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     
     # Taxable Amount Value (for GST)
-    taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(sale_price) # Taxable value calculated on Sale Price for Ajio/FirstCry as per logic
-    
-    # Since Ajio/FirstCry fixed charges (GT/SCM) are not deducted from CPA, we calculate Settlement differently
-    # For Myntra, CPA is Sale Price - GT. For FirstCry/Ajio, CPA is Sale Price.
-    
-    # Total Fixed/SCM Deduction
-    total_fixed_deduction = gt_charge
+    taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(sale_price) 
     
     # Calculate Tax base amounts based on the total CPA (Sale Price)
     tax_amount = customer_paid_amount - taxable_amount_value
@@ -176,7 +170,9 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
     tds = taxable_amount_value * 0.001 
     
     # Final Payment (Settled Amount)
-    settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - total_fixed_deduction - tds - tcs
+    # MODIFIED: Removed total_fixed_deduction (which was gt_charge/SCM) as requested by user
+    # Formula is now: Invoice Value - Commission - TDS - TCS - Royalty - Marketing Fee
+    settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
     # Net Profit
     net_profit = settled_amount - product_cost
@@ -268,7 +264,7 @@ if new_mrp > 0:
          marketing_fee_base, marketing_fee_rate, final_commission, 
          commission_rate, settled_amount, taxable_amount_value, 
          net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost, platform_selector)
-         
+        
         # Calculate Margin Difference for display
         target_profit = product_margin_target_rs
         delta_value = net_profit - target_profit
@@ -289,7 +285,7 @@ if new_mrp > 0:
         # GT Charge/Fixed Fee display logic
         if platform_selector == 'Myntra':
             col_gt.metric(
-                label="GT Charge", 
+                label="GT Charge (Deducted from Sale Price)", 
                 value=f"₹ {gt_charge:,.2f}",
                 delta="Myntra Only",
                 delta_color="off"
@@ -302,12 +298,12 @@ if new_mrp > 0:
             )
         else: # Ajio (New) display
              col_gt.metric(
-                label="SCM Charges (₹95 + 18% GST)", 
+                label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
                 value=f"₹ {gt_charge:,.2f}", 
                 delta_color="off"
             )
             
-        col_customer.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") # Changed CPA label to Invoice Value for Ajio/FirstCry clarity
+        col_customer.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") # CPA = Sale Price for Ajio/FC, Sale Price - GT for Myntra
 
         st.divider() 
         
@@ -393,4 +389,3 @@ if new_mrp > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP to start the calculation.")
-
