@@ -127,11 +127,11 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         if apply_royalty == 'Yes':
             royalty_fee = sale_price * 0.10
         
-        # GT Charge & Marketing are zero
+        # GT Charge & Marketing are zero (as per user request, GT is removed)
         gt_charge = 0.0 
         marketing_fee_base = 0.0 
         
-        customer_paid_amount = sale_price # CPA is Sale Price (since no GT charge)
+        customer_paid_amount = sale_price # CPA = Sale Price (since GT charge is 0)
         marketing_fee_rate = 0.0 # For cleaner display
         
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
@@ -168,7 +168,7 @@ platform_selector = st.radio(
     index=0, 
     horizontal=True
 )
-st.divider() # Correct use: st.divider()
+st.divider() 
 
 # --- CONFIGURATION BAR (Sidebar) ---
 st.sidebar.header("Settings")
@@ -204,7 +204,7 @@ product_margin_target_rs = st.sidebar.number_input(
     label_visibility="visible"
 )
 
-st.sidebar.divider() # Correct use: st.sidebar.divider()
+st.sidebar.divider() 
 
 # --- INPUT FIELDS (Main Body) ---
 col_mrp_in, col_discount_in = st.columns(2)
@@ -228,7 +228,7 @@ new_discount = col_discount_in.number_input(
     label_visibility="visible"
 )
 
-st.divider() # Correct use: st.divider()
+st.divider() 
 
 if new_mrp > 0:
     try:
@@ -262,7 +262,7 @@ if new_mrp > 0:
         )
         col_customer.metric(label="**Customer Paid Amt (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-        st.divider() # Correct use: st.divider()
+        st.divider() 
         
         # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS
         st.markdown("###### **3. Deductions (Charges)**")
@@ -312,7 +312,7 @@ if new_mrp > 0:
             value=f"₹ {tcs:,.2f}"
         )
 
-        st.divider() # Correct use: st.divider()
+        st.divider() 
         
         # Section 4: Final Settlement and Profit
         st.markdown("###### **4. Final Payout and Profit**")
