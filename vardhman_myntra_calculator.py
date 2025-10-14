@@ -178,7 +178,7 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
     tds = taxable_amount_value * 0.001 
     
     # Final Payment (Settled Amount)
-    # TCS and TDS are deductions, so they are subtracted. They are already calculated as positive values.
+    # Final Settled Amount is calculated by reducing all charges, including TDS and TCS (as requested).
     settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
     # Net Profit
