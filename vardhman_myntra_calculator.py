@@ -79,7 +79,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
+def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, product_cost, platform):
     """Performs all sequential calculations for profit analysis based on platform."""
     sale_price = mrp - discount
     if sale_price < 0:
@@ -103,13 +103,19 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         commission_rate = get_myntra_commission_rate(customer_paid_amount)
         commission_amount_base = customer_paid_amount * commission_rate
         
-        # Royalty & Marketing
+        # Royalty Logic
         if apply_royalty == 'Yes':
             royalty_fee = customer_paid_amount * 0.10
-            marketing_fee_rate = 0.05
         else:
+            royalty_fee = 0.0
+            
+        # Marketing Fee Logic (New separate control)
+        if apply_marketing_fee.startswith('Yes'): # Check the start of the string 'Yes (4% of CPA)'
             marketing_fee_rate = 0.04
-        marketing_fee_base = customer_paid_amount * marketing_fee_rate
+            marketing_fee_base = customer_paid_amount * marketing_fee_rate
+        else:
+            marketing_fee_rate = 0.0
+            marketing_fee_base = 0.0
         
         # Final Commission (with 18% tax)
         commission_tax = commission_amount_base * 0.18
@@ -126,6 +132,8 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         # Royalty Fee (10% of Sale Price)
         if apply_royalty == 'Yes':
             royalty_fee = sale_price * 0.10
+        else:
+            royalty_fee = 0.0 # Ensure royalty_fee is defined
         
         # GT Charge & Marketing are zero
         gt_charge = 0.0 
@@ -166,12 +174,11 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
     
     # Calculate Tax base amounts based on the total CPA (Sale Price)
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10  
+    tcs = tax_amount * 0.10  # TCS calculation remains 10% on Tax Amount as requested previously
     tds = taxable_amount_value * 0.001 
     
     # Final Payment (Settled Amount)
-    # MODIFIED: Removed total_fixed_deduction (which was gt_charge/SCM) as requested by user
-    # Formula is now: Invoice Value - Commission - TDS - TCS - Royalty - Marketing Fee
+    # TCS and TDS are deductions, so they are subtracted. They are already calculated as positive values.
     settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
     # Net Profit
@@ -209,6 +216,15 @@ apply_royalty = st.sidebar.radio(
     royalty_label,
     ('Yes', 'No'),
     index=0, 
+    horizontal=True,
+    label_visibility="visible"
+)
+
+# --- NEW: Marketing Fee Radio Button ---
+apply_marketing_fee = st.sidebar.radio(
+    "Marketing Fee (Myntra 4% of CPA)?", 
+    ('Yes (4%)', 'No (0%)'),
+    index=0, # Default to Yes
     horizontal=True,
     label_visibility="visible"
 )
@@ -263,7 +279,7 @@ if new_mrp > 0:
         (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
          marketing_fee_base, marketing_fee_rate, final_commission, 
          commission_rate, settled_amount, taxable_amount_value, 
-         net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost, platform_selector)
+         net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, apply_marketing_fee, product_cost, platform_selector)
         
         # Calculate Margin Difference for display
         target_profit = product_margin_target_rs
@@ -318,6 +334,7 @@ if new_mrp > 0:
                 label=f"Commission ({commission_rate*100:.0f}%+Tax)",
                 value=f"₹ {final_commission:,.2f}",
             )
+            # Display Marketing Fee based on the selected rate
             col2_r1.metric(
                 label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
                 value=f"₹ {marketing_fee_base:,.2f}",
@@ -389,3 +406,4 @@ if new_mrp > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP to start the calculation.")
+
