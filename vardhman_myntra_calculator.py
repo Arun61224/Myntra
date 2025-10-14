@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
 # 🚀 GITHUB RAW URL MAPPED HERE 🚀
-SKU_FILE_NAME = "" 
+SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/refs/heads/main/sku.txt" 
 
 # Flexible Column Names (to handle variations like 'MRP', 'mrp', 'Product MRP', etc.)
 MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] 
@@ -388,5 +388,6 @@ elif mode == "New Listings (Manual Input)":
 
         except ValueError as e:
             st.error(str(e))
+
 
 
