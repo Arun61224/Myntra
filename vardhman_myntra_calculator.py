@@ -179,7 +179,7 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
     
     # Final Payment (Settled Amount)
     # Final Settled Amount is calculated by reducing all charges, including TDS and TCS (as requested).
-    settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base + tds + tcs
+    settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds + tcs
     
     # Net Profit
     net_profit = settled_amount - product_cost
@@ -408,4 +408,5 @@ if new_mrp > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP to start the calculation.")
+
 
