@@ -33,7 +33,6 @@ def get_commission_rate(customer_paid_amount):
 
 def calculate_taxable_amount_value(customer_paid_amount):
     """Calculates Taxable Value and Invoice Tax Rate (GST)."""
-    # 12% GST slab for CPAs >= 2500, 5% otherwise.
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -46,7 +45,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     return taxable_amount, tax_rate
 
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
-    """Performs all sequential calculations for profit analysis."""
+    """Performs all sequential calculations for profit analysis, including Marketing Fee."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -54,34 +53,42 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     gt_charge = calculate_gt_charges(sale_price)
     customer_paid_amount = sale_price - gt_charge
     
-    # 1. Royalty Fee Logic (10% of CPA)
+    # 1. Royalty Fee Logic (10% of CPA if 'Yes')
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
+        marketing_fee_rate = 0.05  # 5% Marketing Fee if Royalty is ON
+    else:
+        marketing_fee_rate = 0.04  # 4% Marketing Fee if Royalty is OFF
+        
+    # 2. Marketing Fee Calculation (New Factor)
+    marketing_fee_base = customer_paid_amount * marketing_fee_rate
     
-    # 2. Commission (Rate determined dynamically, then 18% tax added)
+    # 3. Commission (Rate determined dynamically, then 18% tax added)
     commission_rate = get_commission_rate(customer_paid_amount)
     commission_amount_base = customer_paid_amount * commission_rate
     commission_tax = commission_amount_base * 0.18
     final_commission = commission_amount_base + commission_tax
     
-    # 3. Taxable Amount Value (for GST)
+    # 4. Taxable Amount Value (for GST)
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     
-    # 4. TDS and TCS 
+    # 5. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10  
     tds = taxable_amount_value * 0.001 
     
-    # 5. Final Payment (Settled Amount)
-    settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
+    # 6. Final Payment (Settled Amount)
+    # Marketing fee is deducted here along with other charges
+    settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds - tcs
     
-    # 6. Net Profit
+    # 7. Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-            final_commission, commission_rate, settled_amount, 
-            taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate)
+            marketing_fee_base, marketing_fee_rate, final_commission, 
+            commission_rate, settled_amount, taxable_amount_value, 
+            net_profit, tds, tcs, invoice_tax_rate)
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
@@ -140,8 +147,9 @@ if new_mrp > 0:
     try:
         # Perform calculations
         (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
-         final_commission, commission_rate, settled_amount, 
-         taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
+         marketing_fee_base, marketing_fee_rate, final_commission, 
+         commission_rate, settled_amount, taxable_amount_value, 
+         net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
          
         # --- DISPLAY RESULTS ---
         st.subheader("3. Calculated Financial Metrics")
@@ -149,19 +157,24 @@ if new_mrp > 0:
         col_sale, col_gt, col_customer = st.columns(3)
         col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
         col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
-        col_customer.metric(label="Customer Paid Amount", value=f"₹ {customer_paid_amount:,.2f}")
+        col_customer.metric(label="Customer Paid Amount (CPA)", value=f"₹ {customer_paid_amount:,.2f}")
 
         st.markdown("<br>", unsafe_allow_html=True) 
-
-        col_commission, col_royalty, col_taxable = st.columns(3)
         
-        col_commission.metric(
-            label=f"Total Commission (Rate {commission_rate*100:.0f}%, Incl. 18% Tax)",
+        # Display Charges in 4 Columns
+        col_comm, col_royalty, col_marketing, col_taxable = st.columns(4)
+        
+        col_comm.metric(
+            label=f"Commission ({commission_rate*100:.0f}%, Incl. 18% Tax)",
             value=f"₹ {final_commission:,.2f}",
         )
         col_royalty.metric(
             label=f"Royalty Fee ({apply_royalty})",
             value=f"₹ {royalty_fee:,.2f}",
+        )
+        col_marketing.metric(
+            label=f"Marketing Fee ({marketing_fee_rate*100:.0f}% of CPA)",
+            value=f"₹ {marketing_fee_base:,.2f}",
         )
         col_taxable.metric(
             label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
@@ -170,7 +183,7 @@ if new_mrp > 0:
         
         st.markdown("<br>", unsafe_allow_html=True) 
         
-        col_tds, col_tcs, col_placeholder = st.columns(3)
+        col_tds, col_tcs, col_placeholder1, col_placeholder2 = st.columns(4)
         
         col_tds.metric(
             label="TDS (0.1% on Taxable Value)",
@@ -187,7 +200,7 @@ if new_mrp > 0:
         col_settled, col_net_profit = st.columns(2)
 
         col_settled.metric(
-            label="FINAL SETTLED AMOUNT (Payout after TDS/TCS)",
+            label="FINAL SETTLED AMOUNT (Payout after ALL Deductions)",
             value=f"₹ {settled_amount:,.2f}",
             delta_color="off"
         )
