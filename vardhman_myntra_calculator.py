@@ -5,17 +5,14 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# ⚠️ IMPORTANT: Please verify this URL. The standard format usually uses 'main' instead of 'refs/heads/main'.
-# Example of a better URL format: https://raw.githubusercontent.com/Arun61224/Myntra/main/sku.txt
+# 🚀 GITHUB RAW URL MAPPED HERE 🚀
+# Assuming 'main' branch is correct. If this fails, try using the longer link again.
 SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/main/sku.txt" 
-# Agar upar wala link kaam na kare to neeche wala use karein (aapka original link):
-# SKU_FILE_NAME = "https://raw.githubusercontent.com/Arun61224/Myntra/refs/heads/main/sku.txt"
 
-
-# Flexible Column Names (to handle variations like 'MRP', 'mrp', 'Product MRP', etc.)
-MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] 
-SKU_COLUMNS = ['seller sku code', 'sku', 'sku code', 'seller sku'] 
-DISCOUNT_COLUMNS = ['discount', 'discount amount', 'sale discount']
+# REQUIRED COLUMN NAMES (Must exactly match the header in your sku.txt file)
+MRP_COLUMNS = ['mrp'] 
+SKU_COLUMNS = ['sku code'] 
+DISCOUNT_COLUMNS = ['discount']
 
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
@@ -85,12 +82,11 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
 # --- DATA LOADING (Loads File from GitHub URL) ---
 @st.cache_data
 def load_data(file_url):
-    """Loads and cleans the Myntra data from the GitHub URL (assuming CSV structure)."""
+    """Loads and cleans the Myntra data from the GitHub URL, expecting only 3 specific columns."""
     
     st.info(f"Attempting to load data from: **{file_url}**")
         
     try:
-        # pd.read_csv can directly read from a URL
         df = pd.read_csv(file_url) 
         
         if df.empty:
@@ -100,22 +96,21 @@ def load_data(file_url):
         # Clean column names
         df.columns = df.columns.str.strip().str.lower()
         
-        # --- FLEXIBLE COLUMN DETECTION (FIXED LOGIC) ---
+        # --- COLUMN DETECTION (Using the user's preferred names) ---
         mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
         sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
         discount_col_name = next((col for col in DISCOUNT_COLUMNS if col in df.columns), None)
         
-        required = {'MRP': mrp_col_name, 'SKU': sku_col_name, 'Discount': discount_col_name}
+        required = {'mrp': mrp_col_name, 'sku code': sku_col_name, 'discount': discount_col_name}
         missing = [key for key, val in required.items() if val is None]
         
         if missing:
-            st.error(f"Data Error: Could not find required columns in the GitHub file.")
-            # This is the crucial part that prevents the KeyError later
-            st.warning(f"Missing Columns: **{', '.join(missing)}**. Available Columns: {df.columns.tolist()}")
-            st.warning(f"Please ensure your sku.txt has columns matching these formats: MRP: {', '.join(MRP_COLUMNS)}; SKU: {', '.join(SKU_COLUMNS)}; Discount: {', '.join(DISCOUNT_COLUMNS)}")
+            st.error(f"Data Error: Could not find all required columns in the GitHub file.")
+            st.warning(f"Missing Columns: **{', '.join(missing)}**. Please ensure your header is exactly: `mrp,sku code,discount`")
+            st.warning(f"Available Columns: {df.columns.tolist()}")
             return None
             
-        # Rename columns to standard names
+        # Rename columns to standard internal names
         df.rename(columns={mrp_col_name: 'mrp', sku_col_name: 'seller sku code', discount_col_name: 'discount'}, inplace=True)
 
         # Clean data and convert to numeric
@@ -130,7 +125,7 @@ def load_data(file_url):
         
     except Exception as e:
         st.error(f"An unexpected error occurred while loading data from GitHub: {e}")
-        st.warning("Please ensure the GitHub file is public and the URL is correct.")
+        st.warning("Please ensure the GitHub file is public, the URL is correct, and the file is properly formatted (CSV/TXT).")
         return None
 
 
@@ -226,7 +221,7 @@ if mode == "Existing Listings (Search SKU)":
              final_commission, commission_rate, settled_amount, 
              taxable_amount_value, net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(mrp_from_data, discount, apply_royalty, product_cost)
              
-            # Display Results (same as previous code)
+            # Display Results
             st.markdown("---")
             st.subheader("3. Calculated Financial Metrics")
             
