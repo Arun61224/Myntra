@@ -202,7 +202,7 @@ if new_mrp > 0:
         col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
         col_customer.metric(label="**Customer Paid Amt (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-        st.markdown("")
+        st.divider() # <<< --- NEW LINE ADDED HERE --- >>>
         
         # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS
         st.markdown("###### **3. Deductions (Charges)**")
