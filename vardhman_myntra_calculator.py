@@ -8,6 +8,7 @@ st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Woo
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
+    """Calculates GT Charge based on Sale Price tiers."""
     if sale_price <= 500:
         return 54.00
     elif sale_price <= 1000:
@@ -16,6 +17,7 @@ def calculate_gt_charges(sale_price):
         return 171.00
 
 def get_commission_rate(customer_paid_amount):
+    """Determines the commission rate based on Customer Paid Amount."""
     if customer_paid_amount <= 200:
         return 0.33 
     elif customer_paid_amount <= 300:
@@ -30,16 +32,20 @@ def get_commission_rate(customer_paid_amount):
         return 0.29 
 
 def calculate_taxable_amount_value(customer_paid_amount):
+    """Calculates Taxable Value and Invoice Tax Rate (GST)."""
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
     else:
         tax_rate = 0.05
         divisor = 1.05
+        
     taxable_amount = customer_paid_amount / divisor
+    
     return taxable_amount, tax_rate
 
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
+    """Performs all sequential calculations for profit analysis, including Marketing Fee."""
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -51,9 +57,9 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     royalty_fee = 0.0
     if apply_royalty == 'Yes':
         royalty_fee = customer_paid_amount * 0.10
-        marketing_fee_rate = 0.05
+        marketing_fee_rate = 0.05  # 5% Marketing Fee if Royalty is ON
     else:
-        marketing_fee_rate = 0.04
+        marketing_fee_rate = 0.04  # 4% Marketing Fee if Royalty is OFF
         
     # 2. Marketing Fee Calculation
     marketing_fee_base = customer_paid_amount * marketing_fee_rate
@@ -166,7 +172,7 @@ if new_mrp > 0:
             
         # --- DISPLAY RESULTS ---
         
-        # Section 2: Sales and Revenue (Arranged)
+        # Section 2: Sales and Revenue (3 columns)
         st.markdown("##### 2. Sales and Revenue")
         col_sale, col_gt, col_customer = st.columns(3)
         
@@ -176,46 +182,41 @@ if new_mrp > 0:
 
         st.markdown("---")
         
-        # Section 3: Deductions (Charges)
+        # Section 3: Deductions (Charges) - ***3 COLUMNS, 2 ROWS ARRANGEMENT (FIXED)***
         st.markdown("##### 3. Deductions (Charges)")
         
-        # Row 1: Commission & Marketing
-        col_comm, col_marketing = st.columns(2)
+        # Row 1 (3 columns): Commission, Marketing, Royalty
+        col1_r1, col2_r1, col3_r1 = st.columns(3)
         
-        col_comm.metric(
+        col1_r1.metric(
             label=f"Commission ({commission_rate*100:.0f}% + Tax)",
             value=f"₹ {final_commission:,.2f}",
         )
-        col_marketing.metric(
+        col2_r1.metric(
             label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
             value=f"₹ {marketing_fee_base:,.2f}",
         )
-        
-        # Row 2: Royalty & Taxable Value
-        col_royalty, col_taxable = st.columns(2)
-        
-        col_royalty.metric(
+        col3_r1.metric(
             label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
             value=f"₹ {royalty_fee:,.2f}",
         )
-        col_taxable.metric(
+        
+        # Row 2 (3 columns): Taxable Value, TDS, TCS
+        col1_r2, col2_r2, col3_r2 = st.columns(3)
+
+        col1_r2.metric(
             label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
             value=f"₹ {taxable_amount_value:,.2f}",
         )
-        
-        # Row 3: TDS & TCS
-        col_tds, col_tcs = st.columns(2)
-        
-        col_tds.metric(
+        col2_r2.metric(
             label="TDS (0.1%)",
             value=f"₹ {tds:,.2f}"
         )
-        
-        col_tcs.metric(
+        col3_r2.metric(
             label="TCS (10% on Tax Amt)",
             value=f"₹ {tcs:,.2f}"
         )
-        
+
         st.markdown("---")
         
         # Section 4: Final Settlement and Profit
