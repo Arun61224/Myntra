@@ -2,10 +2,12 @@ import pandas as pd
 import streamlit as st
 import numpy as np
 
-# Set page config for wide layout and minimum gaps
-st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
+# Set page config for wide layout and minimum gaps, using the specified full title
+FULL_TITLE = "Myntra Profit Calculator For Vardhman Wool Store"
+st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness (Scroll Reduction) ---
+# This CSS section ensures the app fits on one page in 100% zoom.
 st.markdown("""
 <style>
     /* Reduce padding around the entire app */
@@ -113,7 +115,8 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
 
 # --- 2. STREAMLIT APP STRUCTURE ---
 
-st.title("🛍️ Myntra Profit Calculator")
+# Title is set here
+st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
 # --- CONFIGURATION BAR (Sidebar) ---
