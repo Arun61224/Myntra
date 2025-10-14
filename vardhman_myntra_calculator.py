@@ -5,7 +5,9 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA LOADING ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-SKU_FILE_NAME = "sku.txt" # File name added back
+SKU_FILE_NAME = "sku.txt" 
+MRP_COLUMNS = ['mrp', 'price', 'product mrp', 'list price'] # Common column names to check (in lowercase)
+SKU_COLUMNS = ['seller sku code', 'sku', 'sku code'] # Common SKU column names to check (in lowercase)
 
 # --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
@@ -50,7 +52,6 @@ def calculate_taxable_amount_value(customer_paid_amount):
 # --- MAIN CALCULATION FUNCTION (No Change) ---
 def perform_calculations(mrp, discount, apply_royalty, product_cost):
     """Performs all sequential calculations for a given MRP and Discount."""
-    
     sale_price = mrp - discount
     if sale_price < 0:
         raise ValueError("Discount Amount cannot be greater than MRP.")
@@ -74,8 +75,8 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost):
     
     # 4. TDS and TCS 
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10  # TCS: 10% of Tax Amount 
-    tds = taxable_amount_value * 0.001 # TDS: 0.1% of Taxable Amount
+    tcs = tax_amount * 0.10  
+    tds = taxable_amount_value * 0.001 
     
     # 5. Final Payment (Settled Amount)
     settled_amount = customer_paid_amount - final_commission - royalty_fee - tds - tcs
@@ -98,7 +99,6 @@ def load_data(uploaded_file):
     try:
         df = pd.read_csv(uploaded_file)
         
-        # Check if DataFrame is empty
         if df.empty:
             st.error("Data Error: The uploaded file is empty or contains no data rows.")
             return None
@@ -106,18 +106,32 @@ def load_data(uploaded_file):
         # Clean column names (strip whitespace and convert to lower)
         df.columns = df.columns.str.strip().str.lower()
         
-        # NOTE: If your file uses different column names (like 'Product MRP' or 'Seller SKU'), 
-        # you MUST change these strings to match the names in your file.
-        required_columns = ['seller sku code', 'mrp']
+        # --- FLEXIBLE COLUMN DETECTION ---
         
-        if not all(col in df.columns for col in required_columns):
-            st.error("Data Error: Required columns 'seller sku code' or 'mrp' are missing after cleaning.")
-            st.warning(f"**Available Column Names (All):** {df.columns.tolist()}")
-            st.warning("Please ensure the column names are exactly 'mrp' and 'seller sku code' (case-insensitive in the original file).")
+        # 1. Find the correct MRP column name
+        mrp_col_name = next((col for col in MRP_COLUMNS if col in df.columns), None)
+        if mrp_col_name is None:
+            st.error("Data Error: Could not find the MRP column.")
+            st.warning(f"Available Columns: {df.columns.tolist()}. Please ensure one of these is the MRP column: {MRP_COLUMNS}")
+            return None
+        
+        # 2. Find the correct SKU column name
+        sku_col_name = next((col for col in SKU_COLUMNS if col in df.columns), None)
+        if sku_col_name is None:
+            st.error("Data Error: Could not find the SKU column.")
+            st.warning(f"Available Columns: {df.columns.tolist()}. Please ensure one of these is the SKU column: {SKU_COLUMNS}")
             return None
             
+        # 3. Rename columns to standard names ('mrp' and 'seller sku code') for rest of the code
+        if mrp_col_name != 'mrp':
+            df.rename(columns={mrp_col_name: 'mrp'}, inplace=True)
+            
+        if sku_col_name != 'seller sku code':
+            df.rename(columns={sku_col_name: 'seller sku code'}, inplace=True)
+
+        # 4. Clean data
         df['mrp'] = pd.to_numeric(df['mrp'], errors='coerce')
-        df.dropna(subset=required_columns, inplace=True)
+        df.dropna(subset=['mrp', 'seller sku code'], inplace=True)
         df = df.drop_duplicates(subset=['seller sku code'], keep='first')
         
         return df
@@ -126,12 +140,11 @@ def load_data(uploaded_file):
         st.error("Data Error: The uploaded file is empty.")
         return None
     except Exception as e:
-        # Catch other errors during file reading
         st.error(f"An unexpected error occurred during file processing: {e}")
         st.warning("Please verify that the file is saved correctly as a **CSV** file.")
         return None
 
-# --- NEW/FIXED FUNCTION: Load SKUs from TXT File ---
+# --- FUNCTION: Load SKUs from TXT File (For Mapping) ---
 def load_sku_list(sku_file_name):
     """Loads a list of SKUs from a text file, one SKU per line. Returns None on FileNotFoundError."""
     try:
@@ -207,7 +220,7 @@ if mode == "Existing Listings (Search SKU)":
         
     st.header("Analyze Existing Product Profitability")
 
-    # Load and Filter Logic (ADDED BACK)
+    # Load and Filter Logic (SKU.TXT MAPPING)
     sku_list_from_file = load_sku_list(SKU_FILE_NAME)
     
     if sku_list_from_file is not None and sku_list_from_file:
@@ -218,7 +231,7 @@ if mode == "Existing Listings (Search SKU)":
             st.warning(f"No matching SKUs found in the uploaded data that are listed in **'{SKU_FILE_NAME}'**. Loading all available SKUs.")
             unique_skus = sorted(df['seller sku code'].unique().tolist())
         else:
-            st.info(f"Filtered to {len(df_filtered)} SKUs listed in **'{SKU_FILE_NAME}'**.")
+            st.info(f"Filtered to **{len(df_filtered)}** SKUs listed in **'{SKU_FILE_NAME}'**.")
             unique_skus = sorted(df_filtered['seller sku code'].unique().tolist())
             df = df_filtered # Use the filtered DataFrame for the rest of the calculations
     else:
