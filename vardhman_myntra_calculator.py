@@ -5,7 +5,7 @@ import numpy as np
 # --- 1. CONFIGURATION AND DATA SETUP ---
 st.set_page_config(layout="wide", page_title="Myntra Calculator for Vardhman Wool Store", page_icon="🛍️")
 
-# --- CALCULATION LOGIC FUNCTIONS ---
+# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
 
 def calculate_gt_charges(sale_price):
     """Calculates GT Charge based on Sale Price tiers."""
@@ -116,7 +116,7 @@ product_cost = st.sidebar.number_input(
     help="This cost is deducted at the end to calculate Net Profit."
 )
 
-# NEW: Margin Target Input in Rupees
+# Margin Target Input in Rupees
 product_margin_target_rs = st.sidebar.number_input(
     "Desired Margin Target (₹)",
     min_value=0.0,
@@ -159,7 +159,7 @@ if new_mrp > 0:
          commission_rate, settled_amount, taxable_amount_value, 
          net_profit, tds, tcs, invoice_tax_rate) = perform_calculations(new_mrp, new_discount, apply_royalty, product_cost)
          
-        # Calculate Margin Difference for display using the new Rupee target
+        # Calculate Margin Difference for display
         target_profit = product_margin_target_rs
         delta_value = net_profit - target_profit
         
@@ -171,38 +171,43 @@ if new_mrp > 0:
         delta_color = "normal" if net_profit >= target_profit else "inverse"
             
         # --- DISPLAY RESULTS ---
-        st.subheader("3. Calculated Financial Metrics")
+        st.subheader("3. Sales and Revenue")
         
+        # Sale and Revenue Section (3 columns)
         col_sale, col_gt, col_customer = st.columns(3)
         col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
-        col_gt.metric(label="GT Charge", value=f"₹ {gt_charge:,.2f}")
-        col_customer.metric(label="Customer Paid Amount (CPA)", value=f"₹ {customer_paid_amount:,.2f}")
+        col_gt.metric(label="GT Charge (Deducted)", value=f"₹ {gt_charge:,.2f}")
+        col_customer.metric(label="**Customer Paid Amount (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-        st.markdown("<br>", unsafe_allow_html=True) 
+        st.markdown("---")
+        st.subheader("4. Deductions (Charges)")
         
-        # Display Charges in 4 Columns
-        col_comm, col_royalty, col_marketing, col_taxable = st.columns(4)
+        # Commission & Marketing Fee (2 columns)
+        col_comm, col_marketing = st.columns(2)
         
         col_comm.metric(
             label=f"Commission ({commission_rate*100:.0f}%, Incl. 18% Tax)",
             value=f"₹ {final_commission:,.2f}",
         )
-        col_royalty.metric(
-            label=f"Royalty Fee ({apply_royalty})",
-            value=f"₹ {royalty_fee:,.2f}",
-        )
         col_marketing.metric(
             label=f"Marketing Fee ({marketing_fee_rate*100:.0f}% of CPA)",
             value=f"₹ {marketing_fee_base:,.2f}",
+        )
+        
+        # Royalty & Taxable Value (2 columns)
+        col_royalty, col_taxable = st.columns(2)
+        
+        col_royalty.metric(
+            label=f"Royalty Fee ({apply_royalty})",
+            value=f"₹ {royalty_fee:,.2f}",
         )
         col_taxable.metric(
             label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
             value=f"₹ {taxable_amount_value:,.2f}",
         )
         
-        st.markdown("<br>", unsafe_allow_html=True) 
-        
-        col_tds, col_tcs, col_placeholder1, col_placeholder2 = st.columns(4)
+        # TDS & TCS (2 columns)
+        col_tds, col_tcs = st.columns(2)
         
         col_tds.metric(
             label="TDS (0.1% on Taxable Value)",
@@ -215,11 +220,13 @@ if new_mrp > 0:
         )
         
         st.markdown("---")
+        st.subheader("5. Final Settlement and Profit")
 
+        # Final Results (2 columns)
         col_settled, col_net_profit = st.columns(2)
 
         col_settled.metric(
-            label="FINAL SETTLED AMOUNT (Payout after ALL Deductions)",
+            label="**FINAL SETTLED AMOUNT (Payout)**",
             value=f"₹ {settled_amount:,.2f}",
             delta_color="off"
         )
