@@ -3,7 +3,7 @@ import streamlit as st
 import numpy as np
 
 # Set page config for wide layout and minimum gaps, using the specified full title
-FULL_TITLE = "Myntra/Ajio Profit Calculator For Vardhman Wool Store"
+FULL_TITLE = "Myntra/FirstCry/New Platform Profit Calculator" # Title Updated
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness (Scroll Reduction) ---
@@ -41,7 +41,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CALCULATION LOGIC FUNCTIONS (No Change) ---
+# --- CALCULATION LOGIC FUNCTIONS ---
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -91,7 +91,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
     marketing_fee_base = 0.0
     final_commission = 0.0
     commission_rate = 0.0 
-    customer_paid_amount = sale_price # Default CPA is Sale Price, adjusted below for Myntra
+    customer_paid_amount = sale_price 
     marketing_fee_rate = 0.0
     
     # --- PLATFORM SPECIFIC LOGIC ---
@@ -115,9 +115,9 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         commission_tax = commission_amount_base * 0.18
         final_commission = commission_amount_base + commission_tax
         
-    elif platform == 'Ajio':
+    elif platform == 'FirstCry': # Name changed from Ajio to FirstCry
         
-        # Ajio Logic: 42% Flat Deduction on Selling Price + Royalty (on Sale Price)
+        # FirstCry Logic: 42% Flat Deduction on Selling Price + Royalty (on Sale Price)
         commission_rate = 0.42 # Flat combined deduction rate for display
         
         # Commission (42% of Sale Price)
@@ -132,7 +132,29 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         marketing_fee_base = 0.0 
         
         customer_paid_amount = sale_price # CPA = Sale Price (since GT charge is 0)
-        marketing_fee_rate = 0.0 # For cleaner display
+        marketing_fee_rate = 0.0
+        
+    elif platform == 'New Platform':
+        # --- Placeholder Logic for New Platform ---
+        
+        # Fixed Charges (e.g., Shipping/Collection)
+        gt_charge = 50.0 
+        customer_paid_amount = sale_price - gt_charge 
+        
+        # Commission (Example: 15% on CPA + Tax)
+        commission_rate = 0.15 
+        commission_amount_base = customer_paid_amount * commission_rate
+        commission_tax = commission_amount_base * 0.18
+        final_commission = commission_amount_base + commission_tax
+        
+        # Royalty Fee (Assume 10% on CPA if selected)
+        if apply_royalty == 'Yes':
+            royalty_fee = customer_paid_amount * 0.10
+        else:
+            royalty_fee = 0.0
+            
+        marketing_fee_base = 0.0 
+        marketing_fee_rate = 0.0
         
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     
@@ -164,7 +186,7 @@ st.markdown("###### **1. Input and Configuration**")
 # --- PLATFORM SELECTOR ---
 platform_selector = st.radio(
     "Select Platform:",
-    ('Myntra', 'Ajio'),
+    ('Myntra', 'FirstCry', 'New Platform'), # Options updated here
     index=0, 
     horizontal=True
 )
@@ -174,10 +196,10 @@ st.divider()
 st.sidebar.header("Settings")
 
 # Royalty Fee Radio Button 
-royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
+royalty_base = 'CPA' if platform_selector == 'Myntra' or platform_selector == 'New Platform' else 'Sale Price'
 royalty_label = f"Royalty Fee (10% of {royalty_base})?"
 
-# Royalty Fee is applicable to both
+# Royalty Fee is applicable to all
 apply_royalty = st.sidebar.radio(
     royalty_label,
     ('Yes', 'No'),
@@ -255,7 +277,7 @@ if new_mrp > 0:
         
         col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
         
-        # Cleaned GT Charge display for Ajio
+        # GT Charge display logic
         if platform_selector == 'Myntra':
             col_gt.metric(
                 label="GT Charge", 
@@ -263,11 +285,16 @@ if new_mrp > 0:
                 delta="Myntra Only",
                 delta_color="off"
             )
-        else:
-            # For Ajio, display only the 0.00 value without any delta text
-            col_gt.metric(
-                label="GT Charge", 
+        elif platform_selector == 'FirstCry': # Logic for FirstCry
+             col_gt.metric(
+                label="Fixed Charges", # Changed label to be general
                 value=f"₹ {gt_charge:,.2f}", # This will be 0.00
+                delta_color="off"
+            )
+        else: # New Platform display
+             col_gt.metric(
+                label="Fixed Fee/GT Charge", 
+                value=f"₹ {gt_charge:,.2f}", 
                 delta_color="off"
             )
             
@@ -290,15 +317,24 @@ if new_mrp > 0:
                 label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
                 value=f"₹ {marketing_fee_base:,.2f}",
             )
-        else: # Ajio specific clean display
+        elif platform_selector == 'FirstCry': # Logic for FirstCry
              col1_r1.metric(
                 label="**Flat Deduction (42% on Sale Price)**",
                 value=f"₹ {final_commission:,.2f}",
             )
-             # Cleaned Marketing/Other Fees display for Ajio
              col2_r1.metric(
                 label="Marketing/Other Fees", 
                 value="₹ 0.00",
+                delta_color="off"
+            )
+        else: # New Platform display
+             col1_r1.metric(
+                label=f"Commission ({commission_rate*100:.0f}%+Tax)",
+                value=f"₹ {final_commission:,.2f}",
+            )
+             col2_r1.metric(
+                label="Marketing/Other Fees", 
+                value=f"₹ {marketing_fee_base:,.2f}",
                 delta_color="off"
             )
         
