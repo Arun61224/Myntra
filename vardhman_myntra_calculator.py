@@ -7,6 +7,7 @@ FULL_TITLE = "Myntra/Ajio Profit Calculator For Vardhman Wool Store"
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness (Scroll Reduction) ---
+# Ensures the app fits on one page in 100% zoom.
 st.markdown("""
 <style>
     /* Reduce padding around the entire app */
@@ -68,7 +69,7 @@ def get_myntra_commission_rate(customer_paid_amount):
 
 # GST Taxable Value (Common)
 def calculate_taxable_amount_value(customer_paid_amount):
-    # GST Logic is common for both platforms based on Invoice Value
+    # GST Logic is common for both platforms based on Invoice Value (CPA/Sale Price)
     if customer_paid_amount >= 2500:
         tax_rate = 0.12 
         divisor = 1.12
@@ -85,12 +86,13 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         raise ValueError("Discount Amount cannot be greater than MRP.")
         
     # --- INITIAL VALUES ---
-    customer_paid_amount = sale_price
     gt_charge = 0.0
     royalty_fee = 0.0
     marketing_fee_base = 0.0
     final_commission = 0.0
-    commission_rate = 0.0 # Used for Myntra display only
+    commission_rate = 0.0 
+    customer_paid_amount = sale_price # Default CPA is Sale Price, adjusted below for Myntra
+    marketing_fee_rate = 0.0
     
     # --- PLATFORM SPECIFIC LOGIC ---
     if platform == 'Myntra':
@@ -115,7 +117,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         
     elif platform == 'Ajio':
         
-        # Ajio Logic: 42% Flat Deduction on Selling Price + Royalty
+        # Ajio Logic: 42% Flat Deduction on Selling Price + Royalty (on Sale Price)
         commission_rate = 0.42 # Flat combined deduction rate for display
         
         # Commission (42% of Sale Price)
@@ -130,6 +132,7 @@ def perform_calculations(mrp, discount, apply_royalty, product_cost, platform):
         marketing_fee_base = 0.0 
         
         customer_paid_amount = sale_price # CPA is Sale Price (since no GT charge)
+        marketing_fee_rate = 0.0 # For cleaner display
         
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     
@@ -165,7 +168,7 @@ platform_selector = st.radio(
     index=0, 
     horizontal=True
 )
-st.divider()
+st.divider() # Correct use: st.divider()
 
 # --- CONFIGURATION BAR (Sidebar) ---
 st.sidebar.header("Settings")
@@ -201,7 +204,7 @@ product_margin_target_rs = st.sidebar.number_input(
     label_visibility="visible"
 )
 
-st.sidebar.divider() 
+st.sidebar.divider() # Correct use: st.sidebar.divider()
 
 # --- INPUT FIELDS (Main Body) ---
 col_mrp_in, col_discount_in = st.columns(2)
@@ -225,7 +228,7 @@ new_discount = col_discount_in.number_input(
     label_visibility="visible"
 )
 
-st.divider() 
+st.divider() # Correct use: st.divider()
 
 if new_mrp > 0:
     try:
@@ -259,7 +262,7 @@ if new_mrp > 0:
         )
         col_customer.metric(label="**Customer Paid Amt (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-        st.divider() 
+        st.divider() # Correct use: st.divider()
         
         # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS
         st.markdown("###### **3. Deductions (Charges)**")
@@ -309,7 +312,7 @@ if new_mrp > 0:
             value=f"₹ {tcs:,.2f}"
         )
 
-        st.divider() 
+        st.divider() # Correct use: st.divider()
         
         # Section 4: Final Settlement and Profit
         st.markdown("###### **4. Final Payout and Profit**")
