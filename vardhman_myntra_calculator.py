@@ -125,9 +125,42 @@ def calculate_jiomart_shipping_fee(weight_in_kg, shipping_zone):
             total_shipping_fee += 4 * rates['upto_5kg_per_kg'] # For 1kg to 5kg slab
             remaining_weight -= 4.0
             total_shipping_fee += np.ceil(remaining_weight) * rates['after_5kg_per_kg']
-            
+
     return total_shipping_fee
 
+# Jiomart Commission Rates (from Image 1)
+JIOMART_COMMISSION_RATES = {
+    "Socks": {"0-500": 0.02, "500+": 0.08},
+    "Socks & Stockings": {"0-500": 0.02, "500+": 0.08},
+    "Thermal Wear Adult": {"0-500": 0.02, "500+": 0.06},
+    "Thermal Wear Kids": {"0-500": 0.05, "500+": 0.09},
+    "Vests": {"0-500": 0.02, "500+": 0.06},
+    "Pyjamas": {"0-500": 0.02, "500+": 0.06},
+    "Pyjamas & Shorts": {"0-500": 0.05, "500+": 0.09},
+    "Clearance Deals": {"0-500": 0.04, "500+": 0.10},
+    "Deals": {"0-500": 0.02, "500+": 0.08},
+    "Shorts": {"0-500": 0.02, "500+": 0.08},
+    "Shorts & 3/4ths": {"0-500": 0.05, "500+": 0.11},
+    "Jeans": {"0-500": 0.05, "500+": 0.11},
+    "Jeans & Jeggings": {"0-500": 0.05, "500+": 0.11},
+    "Ethnic Wear Sets": {"0-500": 0.02, "500+": 0.08},
+    "Innerwear Sets": {"0-500": 0.02, "500+": 0.06},
+    "Sweatshirt & Hoodies": {"0-500": 0.05, "500+": 0.09},
+    "Track Pants": {"0-500": 0.05, "500+": 0.11},
+    "Tops & Tshirts": {"0-500": 0.05, "500+": 0.09},
+    "Tshirts": {"0-500": 0.02, "500+": 0.05},
+    "Dresses & Frocks": {"0-500": 0.02, "500+": 0.08},
+}
+
+def get_jiomart_commission_rate(product_category, sale_price):
+    rates = JIOMART_COMMISSION_RATES.get(product_category)
+    if not rates:
+        return 0.0 # Default to 0 if category not found
+
+    if sale_price <= 500:
+        return rates["0-500"]
+    else:
+        return rates["500+"]
 
 # GST Taxable Value (Common)
 def calculate_taxable_amount_value(customer_paid_amount):
@@ -141,7 +174,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None):
+def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None):
     """Performs all sequential calculations for profit analysis based on platform."""
     sale_price = mrp - discount
     if sale_price < 0:
@@ -153,8 +186,8 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     final_commission = 0.0
     commission_rate = 0.0
     customer_paid_amount = sale_price
-    jiomart_fixed_fee = 0.0 # New Jiomart specific variable
-    jiomart_shipping_fee = 0.0 # New Jiomart specific variable
+    jiomart_fixed_fee = 0.0
+    jiomart_shipping_fee = 0.0
 
     # --- PLATFORM SPECIFIC LOGIC ---
     if platform == 'Myntra':
@@ -188,29 +221,27 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
         marketing_fee_base = 0.0
         marketing_fee_rate = 0.0
-    
+
     elif platform == 'Jiomart':
         # Fixed Fee
         jiomart_fixed_fee = calculate_jiomart_fixed_fee(sale_price)
-        
+
         # Shipping Fee
         if shipping_zone and weight_in_kg > 0:
             jiomart_shipping_fee = calculate_jiomart_shipping_fee(weight_in_kg, shipping_zone)
-        
-        # Placeholder for commission (will be updated when you provide category data)
-        # For now, let's use a dummy rate, e.g., 20%
-        commission_rate = 0.20 
+
+        # Commission
+        if jiomart_category:
+            commission_rate = get_jiomart_commission_rate(jiomart_category, sale_price)
+        else:
+            commission_rate = 0.0 # Default if no category selected
         commission_base = sale_price * commission_rate
         commission_tax = commission_base * 0.18 # Assuming 18% GST on commission
         final_commission = commission_base + commission_tax
-        
-        # Jiomart charges fixed fee and shipping fee separately
-        # These are deductions from the seller's side, not affecting CPA directly like Myntra GT charge.
-        # So customer_paid_amount remains sale_price
-        customer_paid_amount = sale_price
-        
-        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0 # Assuming royalty might apply
-        marketing_fee_base = 0.0 # Assuming no separate marketing fee for now
+
+        customer_paid_amount = sale_price # CPA is sale price for Jiomart
+        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+        marketing_fee_base = 0.0 # No separate marketing fee for Jiomart as per current info
         marketing_fee_rate = 0.0
 
 
@@ -219,13 +250,13 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     tax_amount = customer_paid_amount - taxable_amount_value
     tcs = tax_amount * 0.10
     tds = taxable_amount_value * 0.001
-    
+
     # Adjust settled_amount for Jiomart's additional fees
     if platform == 'Jiomart':
-        settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds + tcs - jiomart_fixed_fee - jiomart_shipping_fee
+        settled_amount = customer_paid_amount - final_commission - royalty_fee - tds + tcs - jiomart_fixed_fee - jiomart_shipping_fee
     else:
         settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds + tcs
-        
+
     net_profit = settled_amount - product_cost
 
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee,
@@ -233,10 +264,10 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee, jiomart_shipping_fee)
 
-# --- NEW FUNCTION: Find Discount for Target Profit (No Change) ---
-def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None):
+# --- NEW FUNCTION: Find Discount for Target Profit ---
+def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
-    (_, _, _, _, _, _, _, _, _, _, initial_profit, _, _, _, _, _) = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone)
+    (_, _, _, _, _, _, _, _, _, _, initial_profit, _, _, _, _, _) = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
 
     if initial_profit < target_profit:
         return None, initial_profit, 0.0
@@ -245,18 +276,18 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
     required_discount = 0.0
 
     while required_discount <= mrp:
-        (_, _, _, _, _, _, _, _, _, _, current_profit, _, _, _, _, _) = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone)
+        (_, _, _, _, _, _, _, _, _, _, current_profit, _, _, _, _, _) = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
 
         if current_profit < target_profit:
             final_discount = max(0.0, required_discount - discount_step)
-            (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _, _, _) = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone)
+            (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _, _, _) = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
             discount_percent = (final_discount / mrp) * 100
             return final_discount, final_profit, discount_percent
 
         required_discount += discount_step
 
     # If loop finishes, it means even at 0 discount, profit is not met or mrp=0
-    (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _, _, _) = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone)
+    (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _, _, _) = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
     return mrp, final_profit, 100.0
 
 
@@ -268,13 +299,13 @@ st.markdown("###### **1. Input and Configuration**")
 # --- PLATFORM & CONFIGURATION ---
 platform_selector = st.radio(
     "Select Platform:",
-    ('Myntra', 'FirstCry', 'Ajio', 'Jiomart'), # Added Jiomart
+    ('Myntra', 'FirstCry', 'Ajio', 'Jiomart'),
     index=0,
     horizontal=True
 )
 
 st.markdown("##### **Configuration Settings**")
-col_mode, col_royalty, col_marketing = st.columns(3)
+col_mode, col_royalty, col_extra_settings = st.columns(3) # Renamed col_marketing to col_extra_settings
 
 with col_mode:
     calculation_mode = st.radio(
@@ -285,8 +316,6 @@ with col_mode:
     )
 
 with col_royalty:
-    # Royalty base calculation remains as before for existing platforms
-    # For Jiomart, let's assume it's based on Sale Price for now
     royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
     apply_royalty = st.radio(
         f"Royalty Fee (10% of {royalty_base})?",
@@ -296,22 +325,42 @@ with col_royalty:
         label_visibility="visible"
     )
 
-with col_marketing:
-    marketing_options = ['0%', '4%', '5%']
-    # Default marketing fee is 0% for platforms other than Myntra
-    default_index = marketing_options.index('4%') if platform_selector == 'Myntra' else marketing_options.index('0%')
-    selected_marketing_fee_str = st.selectbox(
-        "Marketing Fee Rate:",
-        marketing_options,
-        index=default_index,
-        help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
-        key="marketing_fee_selector",
-        disabled=(platform_selector != 'Myntra') # Disable for non-Myntra platforms
-    )
-    marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
+with col_extra_settings: # This column will now handle either Marketing Fee or Jiomart Category
+    marketing_fee_rate = 0.0 # Default to 0
+
+    if platform_selector == 'Myntra':
+        marketing_options = ['0%', '4%', '5%']
+        default_index = marketing_options.index('4%') if platform_selector == 'Myntra' else marketing_options.index('0%')
+        selected_marketing_fee_str = st.selectbox(
+            "Marketing Fee Rate:",
+            marketing_options,
+            index=default_index,
+            help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
+            key="marketing_fee_selector",
+            disabled=(platform_selector != 'Myntra')
+        )
+        marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
+    elif platform_selector == 'Jiomart':
+        jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
+        # Add a default 'Select Category' option at the beginning
+        jiomart_category_options.insert(0, "Select Category")
+        selected_jiomart_category = st.selectbox(
+            "Product Category:",
+            jiomart_category_options,
+            index=0, # Default to "Select Category"
+            help="Select the product category for Jiomart commission calculation.",
+            key="jiomart_category_selector"
+        )
+        # Pass None if "Select Category" is chosen
+        jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
+    else:
+        # For FirstCry and Ajio, marketing fee is 0, and no category selection
+        st.markdown("Marketing Fee Rate: **0%**") # Display as text or just leave empty
+        marketing_fee_rate = 0.0
+        jiomart_category = None
 
 
-# --- Jiomart Specific Inputs ---
+# --- Jiomart Specific Inputs (Weight & Zone) ---
 weight_in_kg = 0.0
 shipping_zone = None
 if platform_selector == 'Jiomart':
@@ -387,10 +436,14 @@ st.divider()
 if new_mrp > 0 and product_cost > 0:
     try:
         # --- CALCULATION BLOCK ---
+        # Initialize jiomart_category if not already set by the widget (e.g., if platform isn't Jiomart)
+        if 'jiomart_category' not in locals() and 'jiomart_category' not in globals():
+            jiomart_category = None
+
         if calculation_mode == 'Target Discount':
             target_profit = product_margin_target_rs
             calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
-                new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone
+                new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category
             )
             if calculated_discount is None:
                 st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
@@ -400,7 +453,7 @@ if new_mrp > 0 and product_cost > 0:
         (sale_price, gt_charge, customer_paid_amount, royalty_fee,
          marketing_fee_base, current_marketing_fee_rate, final_commission,
          commission_rate, settled_amount, taxable_amount_value,
-         net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee, jiomart_shipping_fee) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone)
+         net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee, jiomart_shipping_fee) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category)
 
         target_profit = product_margin_target_rs
         delta_value = net_profit - target_profit
@@ -408,20 +461,16 @@ if new_mrp > 0 and product_cost > 0:
         delta_label = f"vs Target: ₹ {delta_value:,.2f}"
         delta_color = "normal" if net_profit >= target_profit else "inverse"
 
-        # --- DISPLAY RESULTS (MODIFIED FOR TWO-COLUMN COMPACT LAYOUT) ---
+        # --- DISPLAY RESULTS ---
 
-        # Create two main columns for the output display
         col_left, col_right = st.columns(2)
 
-        # =========== LEFT COLUMN: Sales, Fixed Charges, Invoice Value ===========
+        # =========== LEFT COLUMN: Sales, Fixed Charges & Invoice Value ===========
         with col_left:
             st.markdown("###### **2. Sales, Fixed Charges & Invoice Value**")
 
-            # Sub-row 1: Sales (3 columns)
             col1_l, col2_l, col3_l = st.columns(3)
-
             col1_l.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
-
             discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
             col2_l.metric(
                 label="Discount Amt",
@@ -430,10 +479,8 @@ if new_mrp > 0 and product_cost > 0:
                 delta_color="off"
             )
             col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
+            st.markdown("---")
 
-            st.markdown("---") # Custom Horizontal Divider within the column
-
-            # Sub-row 2: Fixed Charges & CPA (2 or 3 columns based on platform)
             if platform_selector == 'Jiomart':
                 col4_l, col5_l, col6_l = st.columns(3)
                 col4_l.metric(
@@ -462,13 +509,12 @@ if new_mrp > 0 and product_cost > 0:
                         value=f"₹ {gt_charge:,.2f}",
                         delta_color="off"
                     )
-                else: # Ajio (New) display
+                else: # Ajio
                     col4_l.metric(
                         label="SCM Charges (₹95 + 18% GST)",
                         value=f"₹ {gt_charge:,.2f}",
                         delta_color="off"
                     )
-
                 col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
 
@@ -476,21 +522,22 @@ if new_mrp > 0 and product_cost > 0:
         with col_right:
             st.markdown("###### **3. Deductions (Charges)**")
 
-            # Sub-row 1: Commission, Marketing, Royalty (3 columns)
             col1_r, col2_r, col3_r = st.columns(3)
 
             # Commission
+            commission_display_label = ""
             if platform_selector == 'Myntra':
-                col1_r.metric(label=f"Commission ({commission_rate*100:.0f}%+Tax)", value=f"₹ {final_commission:,.2f}")
+                commission_display_label = f"Commission ({commission_rate*100:.0f}%+Tax)"
             elif platform_selector == 'FirstCry':
-                col1_r.metric(label="**Flat Deduction (42%)**", value=f"₹ {final_commission:,.2f}")
-            elif platform_selector == 'Ajio': # Ajio (New) display
-                col1_r.metric(label=f"Commission (20%+Tax)", value=f"₹ {final_commission:,.2f}")
-            else: # Jiomart
-                 col1_r.metric(label=f"Commission ({commission_rate*100:.0f}%+Tax)", value=f"₹ {final_commission:,.2f}")
+                commission_display_label = "**Flat Deduction (42%)**"
+            elif platform_selector == 'Ajio':
+                commission_display_label = f"Commission (20%+Tax)"
+            elif platform_selector == 'Jiomart':
+                commission_display_label = f"Commission ({commission_rate*100:.2f}%+Tax)" # Display 2 decimal places for Jiomart commission
 
+            col1_r.metric(label=commission_display_label, value=f"₹ {final_commission:,.2f}")
 
-            # Marketing Fee
+            # Marketing Fee (only for Myntra, else 0)
             col2_r.metric(
                 label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
                 value=f"₹ {marketing_fee_base:,.2f}",
@@ -502,9 +549,7 @@ if new_mrp > 0 and product_cost > 0:
                 value=f"₹ {royalty_fee:,.2f}",
             )
 
-            # Sub-row 2: Taxable Value, TDS, TCS (3 columns)
             col4_r, col5_r, col6_r = st.columns(3)
-
             col4_r.metric(
                 label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
                 value=f"₹ {taxable_amount_value:,.2f}",
@@ -512,9 +557,8 @@ if new_mrp > 0 and product_cost > 0:
             col5_r.metric(label="TDS (0.1%)", value=f"₹ {abs(tds):,.2f}")
             col6_r.metric(label="TCS (10% on Tax Amt)", value=f"₹ {abs(tcs):,.2f}")
 
-            st.markdown("---") # Custom Horizontal Divider within the column
+            st.markdown("---")
 
-            # Sub-row 3: Final Payout and Profit (2 columns)
             st.markdown("###### **4. Final Payout and Profit**")
             col7_r, col8_r = st.columns(2)
 
