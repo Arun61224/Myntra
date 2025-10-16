@@ -150,14 +150,14 @@ JIOMART_COMMISSION_RATES = {
     "Tops & Tshirts": {"0-500": 0.05, "500+": 0.09},
     "Tshirts": {"0-500": 0.02, "500+": 0.05},
     "Dresses & Frocks": {"0-500": 0.02, "500+": 0.08},
-    "Sets Boys": {"0-500": 0.02, "500+": 0.06}, 
-    "Sets Girls": {"0-500": 0.02, "500+": 0.08}, 
+    "Sets Boys": {"0-500": 0.02, "500+": 0.06},
+    "Sets Girls": {"0-500": 0.02, "500+": 0.08},
 }
 
 def get_jiomart_commission_rate(product_category, sale_price):
     rates = JIOMART_COMMISSION_RATES.get(product_category)
     if not rates:
-        return 0.0 
+        return 0.0
 
     if sale_price <= 500:
         return rates["0-500"]
@@ -188,12 +188,12 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     final_commission = 0.0
     commission_rate = 0.0
     customer_paid_amount = sale_price
-    
+
     # Jiomart specific variables (set to 0.0 for non-Jiomart platforms)
-    jiomart_fixed_fee = 0.0 
+    jiomart_fixed_fee = 0.0
     jiomart_shipping_fee = 0.0
-    jiomart_fixed_fee_total = 0.0 # New total fee (base + GST)
-    jiomart_shipping_fee_total = 0.0 # New total fee (base + GST)
+    jiomart_fixed_fee_total = 0.0
+    jiomart_shipping_fee_total = 0.0
 
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
 
@@ -244,14 +244,14 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         if jiomart_category:
             commission_rate = get_jiomart_commission_rate(jiomart_category, sale_price)
         else:
-            commission_rate = 0.0 
+            commission_rate = 0.0
         commission_base = sale_price * commission_rate
-        commission_tax = commission_base * GST_RATE_FEES 
+        commission_tax = commission_base * GST_RATE_FEES
         final_commission = commission_base + commission_tax
 
-        customer_paid_amount = sale_price 
+        customer_paid_amount = sale_price
         royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
-        marketing_fee_base = 0.0 
+        marketing_fee_base = 0.0
         marketing_fee_rate = 0.0
 
 
@@ -262,17 +262,18 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     tds = taxable_amount_value * 0.001
 
     # DEDUCTIONS
-    total_deductions = final_commission + royalty_fee + marketing_fee_base + tds 
-    
-    # Additional fixed charges
+    total_deductions = final_commission + royalty_fee + marketing_fee_base
+
+    # Add platform-specific fixed charges (GT/SCM/Jiomart Fixed/Shipping)
     if platform == 'Jiomart':
         total_deductions += jiomart_fixed_fee_total + jiomart_shipping_fee_total
     else: # Ajio/Myntra fixed charge
-        total_deductions += gt_charge 
+        total_deductions += gt_charge
 
     # FINAL SETTLEMENT
-    settled_amount = customer_paid_amount - total_deductions + tcs
-    
+    # As per user's request: Deduct TDS and TCS from the amount received by the seller.
+    settled_amount = customer_paid_amount - total_deductions - tds - tcs
+
     net_profit = settled_amount - product_cost
 
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee,
@@ -280,7 +281,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total)
 
-# --- NEW FUNCTION: Find Discount for Target Profit (Updated to pass new Jiomart totals) ---
+# --- NEW FUNCTION: Find Discount for Target Profit ---
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
     # Note: The calculation returns 16 values, we only need the 11th (index 10) for profit
@@ -325,7 +326,7 @@ platform_selector = st.radio(
 )
 
 st.markdown("##### **Configuration Settings**")
-col_mode, col_royalty, col_extra_settings = st.columns(3) 
+col_mode, col_royalty, col_extra_settings = st.columns(3)
 
 with col_mode:
     calculation_mode = st.radio(
@@ -345,8 +346,8 @@ with col_royalty:
         label_visibility="visible"
     )
 
-with col_extra_settings: 
-    marketing_fee_rate = 0.0 
+with col_extra_settings:
+    marketing_fee_rate = 0.0
     jiomart_category = None
     selected_jiomart_category = None
 
@@ -364,18 +365,18 @@ with col_extra_settings:
         marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
     elif platform_selector == 'Jiomart':
         jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
-        jiomart_category_options.sort() 
+        jiomart_category_options.sort()
         jiomart_category_options.insert(0, "Select Category")
         selected_jiomart_category = st.selectbox(
             "Product Category:",
             jiomart_category_options,
-            index=0, 
+            index=0,
             help="Select the product category for Jiomart commission calculation.",
             key="jiomart_category_selector"
         )
         jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
     else:
-        st.markdown("Marketing Fee Rate: **0%**") 
+        st.markdown("Marketing Fee Rate: **0%**")
         marketing_fee_rate = 0.0
 
 
@@ -559,7 +560,7 @@ if new_mrp > 0 and product_cost > 0:
             elif platform_selector == 'Ajio':
                 commission_display_label = f"Commission (20%+Tax)"
             elif platform_selector == 'Jiomart':
-                commission_display_label = f"Commission ({commission_rate*100:.2f}%+Tax)" 
+                commission_display_label = f"Commission ({commission_rate*100:.2f}%+Tax)"
 
             col1_r.metric(label=commission_display_label, value=f"₹ {final_commission:,.2f}")
 
