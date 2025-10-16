@@ -18,7 +18,7 @@ st.markdown("""
         padding-right: 1rem;
         
         /* NEW: Set Max-Width for the entire app content (800px) */
-        max-width: 800px; 
+        max-width: 1000px; 
         
         /* Set margin to 'auto' for centering */
         margin-left: auto;
@@ -535,3 +535,4 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
