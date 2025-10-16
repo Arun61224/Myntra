@@ -6,7 +6,7 @@ import numpy as np
 FULL_TITLE = "Vardhman Wool Store E.com Calculator" 
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Custom CSS for Compactness & VERTICAL LINES ---
+# --- Custom CSS for Compactness (Removed Vertical Lines CSS as they are no longer relevant for vertical layout) ---
 st.markdown("""
 <style>
     /* 1. Force a Maximum Width on the main content block and center it */
@@ -44,22 +44,7 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 1.5rem; 
     }
-    .st-emotion-cache-12quz0q { 
-        gap: 0.5rem;
-    }
-    
-    /* 🔥 3. VERTICAL DIVIDER CSS (Applied to 2 and 3 column sections only) */
-    /* Target the columns container */
-    div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(1) {
-        border-right: 1px solid rgba(255, 255, 255, 0.1); 
-    }
-    div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(2) {
-        border-right: 1px solid rgba(255, 255, 255, 0.1); 
-    }
-    div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(1),
-    div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(2) {
-        padding-right: 1rem; 
-    }
+    /* Removed custom column gap and vertical divider CSS as they break vertical layout */
     
 </style>
 """, unsafe_allow_html=True)
@@ -262,7 +247,6 @@ platform_selector = st.radio(
 st.markdown("##### **Configuration Settings**")
 
 # Row 1: Calculation Mode, Royalty, Marketing Fee - 3 Columns
-# No vertical lines needed here, so not wrapped in a container for specific CSS
 col_mode, col_royalty, col_marketing = st.columns(3)
 
 with col_mode:
@@ -387,10 +371,8 @@ if new_mrp > 0 and product_cost > 0:
             
         # --- DISPLAY RESULTS ---
         
-        # Section 2: Sales and Revenue (Now Vertical)
+        # Section 2: Sales and Revenue (Vertical - 3 metrics)
         st.markdown("###### **2. Sales and Revenue**")
-        
-        # --- MODIFICATION: MRP, Discount, Sale Price are now displayed vertically ---
         
         # 1. Product MRP
         st.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
@@ -409,125 +391,114 @@ if new_mrp > 0 and product_cost > 0:
         
         st.divider()
         
-        # Section 2.1: Fixed Charges & Invoice Value (2 columns, retains vertical lines)
+        # Section 2.1: Fixed Charges & Invoice Value (Vertical - 2 metrics)
         st.markdown("###### **2.1. Fixed Charges & Invoice Value**")
         
-        # Use st.container() to wrap the 2 columns for CSS targeting
-        with st.container(border=False):
-            # Columns for GT Charge and Invoice Value
-            col_gt, col_customer = st.columns(2)
-            
-            # GT Charge/Fixed Fee display logic
-            if platform_selector == 'Myntra':
-                col_gt.metric(
-                    label="GT Charge (Deducted from Sale Price)", 
-                    value=f"₹ {gt_charge:,.2f}",
-                    delta="Myntra Only",
-                    delta_color="off"
-                )
-            elif platform_selector == 'FirstCry': 
-                col_gt.metric(
-                    label="Fixed Charges", 
-                    value=f"₹ {gt_charge:,.2f}", # This will be 0.00
-                    delta_color="off"
-                )
-            else: # Ajio (New) display
-                col_gt.metric(
-                    label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
-                    value=f"₹ {gt_charge:,.2f}", 
-                    delta_color="off"
-                )
-                
-            col_customer.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") # CPA = Sale Price for Ajio/FC, Sale Price - GT for Myntra
-
-        st.divider() 
-        
-        # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS (retains vertical lines)
-        st.markdown("###### **3. Deductions (Charges)**")
-        
-        # Row 1 (3 columns): Commission/Deduction, Marketing/Other, Royalty
-        # Use st.container() to wrap the 3 columns for CSS targeting
-        with st.container(border=False):
-            col1_r1, col2_r1, col3_r1 = st.columns(3)
-            
-            if platform_selector == 'Myntra':
-                col1_r1.metric(
-                    label=f"Commission ({commission_rate*100:.0f}%+Tax)",
-                    value=f"₹ {final_commission:,.2f}",
-                )
-                # Display Marketing Fee based on the actual rate used
-                col2_r1.metric(
-                    label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
-                    value=f"₹ {marketing_fee_base:,.2f}",
-                )
-            elif platform_selector == 'FirstCry': 
-                  col1_r1.metric(
-                    label="**Flat Deduction (42% on Sale Price)**",
-                    value=f"₹ {final_commission:,.2f}",
-                  )
-                  col2_r1.metric(
-                    label="Marketing/Other Fees", 
-                    value="₹ 0.00",
-                    delta_color="off"
-                  )
-            else: # Ajio (New) display
-                  commission_rate_ajio = 0.20 # Use 20% for Ajio display
-                  col1_r1.metric(
-                    label=f"Commission ({commission_rate_ajio*100:.0f}% on Sale Price + 18% Tax)",
-                    value=f"₹ {final_commission:,.2f}",
-                  )
-                  col2_r1.metric(
-                    label="Marketing/Other Fees", 
-                    value="₹ 0.00",
-                    delta_color="off"
-                  )
-            
-            col3_r1.metric(
-                label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
-                value=f"₹ {royalty_fee:,.2f}",
+        # --- MODIFICATION: Vertical Display ---
+        # 1. GT Charge/Fixed Fee display logic
+        if platform_selector == 'Myntra':
+            st.metric(
+                label="GT Charge (Deducted from Sale Price)", 
+                value=f"₹ {gt_charge:,.2f}",
+                delta="Myntra Only",
+                delta_color="off"
             )
-        
-        # Row 2 (3 columns): Taxable Value, TDS, TCS
-        # Use st.container() to wrap the 3 columns for CSS targeting
-        with st.container(border=False):
-            col1_r2, col2_r2, col3_r2 = st.columns(3)
-
-            col1_r2.metric(
-                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
-                value=f"₹ {taxable_amount_value:,.2f}",
+        elif platform_selector == 'FirstCry': 
+            st.metric(
+                label="Fixed Charges", 
+                value=f"₹ {gt_charge:,.2f}", 
+                delta_color="off"
             )
-            # TDS display update to ensure positive sign
-            col2_r2.metric(
-                label="TDS (0.1%)",
-                value=f"₹ {abs(tds):,.2f}"
-            )
-            # TCS display update to ensure positive sign
-            col3_r2.metric(
-                label="TCS (10% on Tax Amt)",
-                value=f"₹ {abs(tcs):,.2f}"
-            )
-
-        st.divider() 
-        
-        # Section 4: Final Settlement and Profit (2 columns, retains vertical line)
-        st.markdown("###### **4. Final Payout and Profit**")
-
-        # Use st.container() to wrap the 2 columns for CSS targeting
-        with st.container(border=False):
-            col_settled, col_net_profit = st.columns(2)
-
-            col_settled.metric(
-                label="**FINAL SETTLED AMOUNT**",
-                value=f"₹ {settled_amount:,.2f}",
+        else: # Ajio (New) display
+            st.metric(
+                label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
+                value=f"₹ {gt_charge:,.2f}", 
                 delta_color="off"
             )
             
-            col_net_profit.metric(
-                label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
-                value=f"₹ {net_profit:,.2f}",
-                delta=delta_label,
-                delta_color=delta_color
+        # 2. Invoice Value (CPA)
+        st.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") 
+
+        st.divider() 
+        
+        # Section 3: Deductions (Charges) (Vertical - 6 metrics)
+        st.markdown("###### **3. Deductions (Charges)**")
+        
+        # --- MODIFICATION: Vertical Display ---
+        
+        # 1. Commission/Deduction
+        if platform_selector == 'Myntra':
+            st.metric(
+                label=f"Commission ({commission_rate*100:.0f}%+Tax)",
+                value=f"₹ {final_commission:,.2f}",
             )
+        elif platform_selector == 'FirstCry': 
+            st.metric(
+                label="**Flat Deduction (42% on Sale Price)**",
+                value=f"₹ {final_commission:,.2f}",
+            )
+        else: # Ajio (New) display
+            commission_rate_ajio = 0.20 
+            st.metric(
+                label=f"Commission ({commission_rate_ajio*100:.0f}% on Sale Price + 18% Tax)",
+                value=f"₹ {final_commission:,.2f}",
+            )
+        
+        # 2. Marketing/Other Fees
+        if platform_selector == 'Myntra':
+            st.metric(
+                label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
+                value=f"₹ {marketing_fee_base:,.2f}",
+            )
+        else:
+             st.metric(
+                label="Marketing/Other Fees", 
+                value=f"₹ {marketing_fee_base:,.2f}", # 0.00 for FC/Ajio
+                delta_color="off"
+            )
+        
+        # 3. Royalty Fee
+        st.metric(
+            label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
+            value=f"₹ {royalty_fee:,.2f}",
+        )
+        
+        # 4. Taxable Value
+        st.metric(
+            label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
+            value=f"₹ {taxable_amount_value:,.2f}",
+        )
+        # 5. TDS
+        st.metric(
+            label="TDS (0.1%)",
+            value=f"₹ {abs(tds):,.2f}"
+        )
+        # 6. TCS
+        st.metric(
+            label="TCS (10% on Tax Amt)",
+            value=f"₹ {abs(tcs):,.2f}"
+        )
+
+        st.divider() 
+        
+        # Section 4: Final Payout and Profit (Vertical - 2 metrics)
+        st.markdown("###### **4. Final Payout and Profit**")
+
+        # --- MODIFICATION: Vertical Display ---
+        # 1. FINAL SETTLED AMOUNT
+        st.metric(
+            label="**FINAL SETTLED AMOUNT**",
+            value=f"₹ {settled_amount:,.2f}",
+            delta_color="off"
+        )
+        
+        # 2. NET PROFIT
+        st.metric(
+            label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
+            value=f"₹ {net_profit:,.2f}",
+            delta=delta_label,
+            delta_color=delta_color
+        )
 
     except ValueError as e:
         st.error(str(e))
