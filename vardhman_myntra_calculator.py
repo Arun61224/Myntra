@@ -6,17 +6,26 @@ import numpy as np
 FULL_TITLE = "Vardhman Wool Store E.com Calculator" 
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Custom CSS for Compactness (Scroll Reduction) ---
-# Ensures the app fits on one page in 100% zoom.
+# --- Custom CSS for Compactness (Scroll Reduction and Narrow Layout) ---
 st.markdown("""
 <style>
-    /* Reduce padding around the entire app */
+    /* 1. Force a Maximum Width on the main content block and center it */
     .block-container {
         padding-top: 1rem;
         padding-bottom: 1rem;
         padding-left: 1rem;
         padding-right: 1rem;
+        
+        /* NEW: Set Max-Width for the entire app content (800px) */
+        max-width: 800px; 
+        
+        /* Set margin to 'auto' for centering */
+        margin-left: auto;
+        margin-right: auto;
     }
+    
+    /* 2. Standard Compactness Rules (from original code) */
+    
     /* Reduce padding/margin in markdown headers */
     h1, h2, h3, h4, h5, h6 {
         margin-top: 0.5rem;
@@ -38,6 +47,13 @@ st.markdown("""
     .st-emotion-cache-12quz0q { 
         gap: 0.5rem;
     }
+    
+    /* Optional: Make the sidebar slightly narrower too */
+    section[data-testid="stSidebar"] {
+        width: 190px !important;
+        min-width: 190px !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,7 +133,7 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
         else:
             marketing_fee_rate = 0.0
             marketing_fee_base = 0.0
-        
+            
         # Final Commission (with 18% tax)
         commission_tax = commission_amount_base * 0.18
         final_commission = commission_amount_base + commission_tax
@@ -175,7 +191,7 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
     
     # Calculate Tax base amounts based on the total CPA (Sale Price)
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10  # TCS calculation remains 10% on Tax Amount as requested previously
+    tcs = tax_amount * 0.10 # TCS calculation remains 10% on Tax Amount as requested previously
     tds = taxable_amount_value * 0.001 
     
     # Final Payment (Settled Amount)
@@ -192,7 +208,7 @@ def perform_calculations(mrp, discount, apply_royalty, apply_marketing_fee, prod
 
 # --- NEW FUNCTION: Find Discount for Target Profit ---
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, apply_marketing_fee, product_cost, platform):
-    """Finds the maximum discount allowed (in 0.1 steps) to achieve at least the target profit."""
+    """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
     
     # Calculate max possible profit (at 0 discount)
     (_, _, _, _, _, _, _, _, _, _, initial_profit, _, _, _) = perform_calculations(mrp, 0.0, apply_royalty, apply_marketing_fee, product_cost, platform)
@@ -202,7 +218,7 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, apply_mar
         return None, initial_profit, 0.0 # required_discount, max_profit, max_discount_percent
     
     # Binary search/Iteration setup
-    discount_step = 1.0 # Start with larger step
+    discount_step = 1.0 # Step size for finding the discount
     required_discount = 0.0
     
     # Iteratively increase discount until profit drops below target
@@ -222,9 +238,10 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, apply_mar
         
         required_discount += discount_step
 
-    # Fallback for full MRP discount case
-    discount_percent = (mrp / mrp) * 100
-    return mrp, current_profit, discount_percent
+    # Fallback for full MRP discount case (should only happen if profit is still > target at full discount)
+    (_, _, _, _, _, _, _, _, settled_amount, _, final_profit, _, _, _) = perform_calculations(mrp, mrp, apply_royalty, apply_marketing_fee, product_cost, platform)
+    discount_percent = 100.0
+    return mrp, final_profit, discount_percent
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
@@ -386,7 +403,7 @@ if new_mrp > 0 and product_cost > 0:
                 delta_color="off"
             )
         else:
-             # Display manual discount as entered
+              # Display manual discount as entered
             discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
             col_discount_out.metric(
                 label="Discount Amount", 
@@ -511,4 +528,3 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
-
