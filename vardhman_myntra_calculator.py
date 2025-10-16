@@ -12,7 +12,7 @@ st.markdown("""
     /* 1. Force a Maximum Width on the main content block and center it */
     .block-container {
         /* VERTICAL SQUEEZE: Reduced from 1rem to 0.5rem */
-        padding-top: 0.5rem; 
+        padding-top: 1.0rem; 
         padding-bottom: 0.5rem; 
         padding-left: 1rem;
         padding-right: 1rem;
@@ -535,6 +535,7 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
 
