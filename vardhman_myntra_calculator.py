@@ -6,7 +6,7 @@ import numpy as np
 FULL_TITLE = "Vardhman Wool Store E.com Calculator" 
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Custom CSS for Compactness (Keeping only compactness, removing all column CSS) ---
+# --- Custom CSS for Compactness & VERTICAL SEPARATION ---
 st.markdown("""
 <style>
     /* 1. Force a Maximum Width on the main content block and center it */
@@ -46,7 +46,20 @@ st.markdown("""
     }
     /* Set a tighter gap for the new two-column main results area */
     .st-emotion-cache-12quz0q { 
-        gap: 0.75rem; /* Slightly wider gap for major sections */
+        gap: 0.75rem; 
+    }
+    
+    /* 🔥 3. VERTICAL DIVIDER FOR MAIN COLUMNS (Added here) */
+    /* Target the container that holds the two main result columns (col_left, col_right) */
+    /* This targets the column that contains the 'col_left' content. */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
+        border-right: 1px solid rgba(255, 255, 255, 0.1); 
+        padding-right: 1rem; /* Space between content and line */
+    }
+    
+    /* Ensure the padding is reset for the 'col_right' side if needed */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+        padding-left: 1rem;
     }
     
 </style>
@@ -175,7 +188,7 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
     return mrp, final_profit, 100.0
 
 
-# --- 2. STREAMLIT APP STRUCTURE ---
+# --- 2. STREAMLIT APP STRUCTURE (No Change) ---
 
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
@@ -297,6 +310,7 @@ if new_mrp > 0 and product_cost > 0:
         # --- DISPLAY RESULTS (MODIFIED FOR TWO-COLUMN COMPACT LAYOUT) ---
         
         # Create two main columns for the output display
+        # st.container() is not used here because we are targeting the inner st.columns with CSS
         col_left, col_right = st.columns(2)
         
         # =========== LEFT COLUMN: Sales, Fixed Charges, Invoice Value ===========
@@ -317,7 +331,7 @@ if new_mrp > 0 and product_cost > 0:
             )
             col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
             
-            st.markdown("---") # Custom Divider within the column
+            st.markdown("---") # Custom Horizontal Divider within the column
             
             # Sub-row 2: Fixed Charges & CPA (2 columns)
             col4_l, col5_l = st.columns(2)
@@ -381,7 +395,7 @@ if new_mrp > 0 and product_cost > 0:
             col5_r.metric(label="TDS (0.1%)", value=f"₹ {abs(tds):,.2f}")
             col6_r.metric(label="TCS (10% on Tax Amt)", value=f"₹ {abs(tcs):,.2f}")
             
-            st.markdown("---") # Custom Divider within the column
+            st.markdown("---") # Custom Horizontal Divider within the column
             
             # Sub-row 3: Final Payout and Profit (2 columns)
             st.markdown("###### **4. Final Payout and Profit**")
