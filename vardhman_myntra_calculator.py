@@ -432,7 +432,23 @@ calculation_mode = st.radio(
     index=0,
     label_visibility="visible"
 )
-st.divider()
+
+# --- Move Sub-Mode here, conditionally display ---
+if calculation_mode == 'A. Single Product Calculation':
+    st.markdown("---") # Add a small separator
+    single_calc_mode = st.radio(
+        "Sub-Mode:",
+        ('Profit Calculation', 'Target Discount'),
+        index=0,
+        label_visibility="visible",
+        horizontal=True # Make it horizontal to save vertical space
+    )
+    st.divider() # Add a divider after sub-mode
+
+# General divider (always present after calculation mode or sub-mode if applicable)
+else: # For bulk processing, divider should still be there but without sub-mode
+    st.divider()
+
 
 if calculation_mode == 'A. Single Product Calculation':
     # --- Single Product Inputs ---
@@ -444,16 +460,8 @@ if calculation_mode == 'A. Single Product Calculation':
         horizontal=True
     )
     st.markdown("##### **Configuration Settings**")
-    col_mode, col_royalty, col_extra_settings = st.columns(3)
+    col_royalty, col_extra_settings = st.columns(2) # Reduced to 2 columns as sub-mode moved
 
-    # --- Mode (kept for profit/target) ---
-    with col_mode:
-        single_calc_mode = st.radio(
-            "Sub-Mode:",
-            ('Profit Calculation', 'Target Discount'),
-            index=0,
-            label_visibility="visible"
-        )
 
     # --- Royalty ---
     with col_royalty:
