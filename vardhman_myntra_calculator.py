@@ -6,7 +6,7 @@ import numpy as np
 FULL_TITLE = "Vardhman Wool Store E.com Calculator" 
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Custom CSS for Compactness (Removed Vertical Lines CSS as they are no longer relevant for vertical layout) ---
+# --- Custom CSS for Compactness (Keeping only compactness, removing all column CSS) ---
 st.markdown("""
 <style>
     /* 1. Force a Maximum Width on the main content block and center it */
@@ -44,7 +44,10 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 1.5rem; 
     }
-    /* Removed custom column gap and vertical divider CSS as they break vertical layout */
+    /* Set a tighter gap for the new two-column main results area */
+    .st-emotion-cache-12quz0q { 
+        gap: 0.75rem; /* Slightly wider gap for major sections */
+    }
     
 </style>
 """, unsafe_allow_html=True)
@@ -91,10 +94,8 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     """Performs all sequential calculations for profit analysis based on platform."""
     sale_price = mrp - discount
     if sale_price < 0:
-        # Return negative profit if sale price is invalid, handles edge case in search
         return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0)
     
-    # --- INITIAL VALUES ---
     gt_charge = 0.0
     royalty_fee = 0.0
     marketing_fee_base = 0.0
@@ -104,87 +105,43 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     
     # --- PLATFORM SPECIFIC LOGIC ---
     if platform == 'Myntra':
-        
         gt_charge = calculate_myntra_gt_charges(sale_price)
-        customer_paid_amount = sale_price - gt_charge # CPA = Sale Price - GT
-        
+        customer_paid_amount = sale_price - gt_charge
         commission_rate = get_myntra_commission_rate(customer_paid_amount)
         commission_amount_base = customer_paid_amount * commission_rate
-        
-        # Royalty Logic
-        if apply_royalty == 'Yes':
-            royalty_fee = customer_paid_amount * 0.10
-        else:
-            royalty_fee = 0.0
-            
-        # Marketing Fee Logic (Uses the rate passed from the new selector)
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0
         marketing_fee_base = customer_paid_amount * marketing_fee_rate
-            
-        # Final Commission (with 18% tax)
         commission_tax = commission_amount_base * 0.18
         final_commission = commission_amount_base + commission_tax
         
     elif platform == 'FirstCry': 
-        
-        # FirstCry Logic: 42% Flat Deduction on Selling Price + Royalty (on Sale Price)
-        commission_rate = 0.42 # Flat combined deduction rate for display
-        
-        # Commission (42% of Sale Price)
+        commission_rate = 0.42 
         final_commission = sale_price * commission_rate
-        
-        # Royalty Fee (10% of Sale Price)
-        if apply_royalty == 'Yes':
-            royalty_fee = sale_price * 0.10
-        else:
-            royalty_fee = 0.0 # Ensure royalty_fee is defined
-        
-        # GT Charge & Marketing are zero
+        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
         gt_charge = 0.0 
         marketing_fee_base = 0.0 
+        customer_paid_amount = sale_price 
+        marketing_fee_rate = 0.0
         
-        customer_paid_amount = sale_price # CPA = Sale Price 
-        marketing_fee_rate = 0.0 # Force 0 for FC display
-        
-    elif platform == 'Ajio': # New Ajio Logic implemented here
-        
-        # 1. Commission (20% on Sale Price + 18% GST)
+    elif platform == 'Ajio':
         commission_rate = 0.20
         commission_base = sale_price * commission_rate
         commission_tax = commission_base * 0.18
         final_commission = commission_base + commission_tax
-        
-        # 2. SCM Charges (Fixed Fee: 95 + 18% GST) - Displayed as gt_charge
         scm_base = 95.0
         scm_tax = scm_base * 0.18
         gt_charge = scm_base + scm_tax 
+        customer_paid_amount = sale_price
+        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+        marketing_fee_base = 0.0
+        marketing_fee_rate = 0.0
         
-        # CPA calculation
-        customer_paid_amount = sale_price # Invoice Value = Sale Price 
-        
-        # 3. Royalty Fee (10% on Sale Price)
-        if apply_royalty == 'Yes':
-            royalty_fee = sale_price * 0.10
-        else:
-            royalty_fee = 0.0
-            
-        marketing_fee_base = 0.0 # No separate marketing fee
-        marketing_fee_rate = 0.0 # Force 0 for Ajio display
-        
-    # --- COMMON TAX AND FINAL SETTLEMENT LOGIC (No Change) ---
-    
-    # Taxable Amount Value (for GST)
+    # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(sale_price) 
-    
-    # Calculate Tax base amounts based on the total CPA (Sale Price)
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = tax_amount * 0.10 # TCS calculation remains 10% on Tax Amount as requested previously
+    tcs = tax_amount * 0.10
     tds = taxable_amount_value * 0.001 
-    
-    # Final Payment (Settled Amount)
-    # Final Settled Amount is calculated by reducing all charges, including TDS and TCS (as requested).
     settled_amount = customer_paid_amount - final_commission - royalty_fee - marketing_fee_base - tds + tcs
-    
-    # Net Profit
     net_profit = settled_amount - product_cost
     
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee, 
@@ -195,39 +152,27 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
 # --- NEW FUNCTION: Find Discount for Target Profit (No Change) ---
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
-    
-    # Calculate max possible profit (at 0 discount)
     (_, _, _, _, _, _, _, _, _, _, initial_profit, _, _, _) = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform)
 
     if initial_profit < target_profit:
-        # Target profit is unachievable even with zero discount
-        return None, initial_profit, 0.0 # required_discount, max_profit, max_discount_percent
-    
-    # Binary search/Iteration setup
-    discount_step = 1.0 # Step size for finding the discount
+        return None, initial_profit, 0.0
+
+    discount_step = 1.0
     required_discount = 0.0
     
-    # Iteratively increase discount until profit drops below target
     while required_discount <= mrp:
-        # The relationship is inverse: more discount -> less profit.
         (_, _, _, _, _, _, _, _, _, _, current_profit, _, _, _) = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform)
         
         if current_profit < target_profit:
-            # We crossed the target. The best discount is the previous step.
-            # Use the previous discount to calculate final metrics
             final_discount = max(0.0, required_discount - discount_step)
-            # Re-calculate with the final discount for accurate output
-            (_, _, _, _, _, _, _, _, settled_amount, _, final_profit, _, _, _) = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform)
-            
+            (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _) = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform)
             discount_percent = (final_discount / mrp) * 100
             return final_discount, final_profit, discount_percent
         
         required_discount += discount_step
 
-    # Fallback for full MRP discount case (should only happen if profit is still > target at full discount)
-    (_, _, _, _, _, _, _, _, settled_amount, _, final_profit, _, _, _) = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform)
-    discount_percent = 100.0
-    return mrp, final_profit, discount_percent
+    (_, _, _, _, _, _, _, _, _, _, final_profit, _, _, _) = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform)
+    return mrp, final_profit, 100.0
 
 
 # --- 2. STREAMLIT APP STRUCTURE ---
@@ -235,22 +180,18 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
-# --- PLATFORM SELECTOR ---
+# --- PLATFORM & CONFIGURATION (No Change) ---
 platform_selector = st.radio(
     "Select Platform:",
-    ('Myntra', 'FirstCry', 'Ajio'), # Options updated here
+    ('Myntra', 'FirstCry', 'Ajio'),
     index=0, 
     horizontal=True
 )
 
-# --- CONFIGURATION ---
 st.markdown("##### **Configuration Settings**")
-
-# Row 1: Calculation Mode, Royalty, Marketing Fee - 3 Columns
 col_mode, col_royalty, col_marketing = st.columns(3)
 
 with col_mode:
-    # Calculation Mode Selector
     calculation_mode = st.radio(
         "Calculation Mode:",
         ('Profit Calculation', 'Target Discount'),
@@ -259,13 +200,9 @@ with col_mode:
     )
 
 with col_royalty:
-    # Royalty Fee Radio Button 
     royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
-    royalty_label = f"Royalty Fee (10% of {royalty_base})?"
-    
-    # Royalty Fee is applicable to all
     apply_royalty = st.radio(
-        royalty_label,
+        f"Royalty Fee (10% of {royalty_base})?",
         ('Yes', 'No'),
         index=0, 
         horizontal=True,
@@ -273,11 +210,8 @@ with col_royalty:
     )
 
 with col_marketing:
-    # Marketing Fee Selectbox (Replaced Radio)
     marketing_options = ['0%', '4%', '5%']
-    # Set default for Myntra to 4%, others to 0%
     default_index = marketing_options.index('4%') if platform_selector == 'Myntra' else marketing_options.index('0%')
-    
     selected_marketing_fee_str = st.selectbox(
         "Marketing Fee Rate:", 
         marketing_options,
@@ -285,15 +219,10 @@ with col_marketing:
         help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
         key="marketing_fee_selector"
     )
-    # Convert selected string to a float rate (0.00, 0.04, 0.05)
     marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
 
-
-# Row 2: Product Cost, Target Profit - 2 Columns
 col_cost, col_target = st.columns(2)
-
 with col_cost:
-    # Product Cost Input
     product_cost = st.number_input(
         "Product Cost (₹)",
         min_value=0.0,
@@ -303,7 +232,6 @@ with col_cost:
     )
     
 with col_target:
-    # Target Margin Input (Used in both modes)
     product_margin_target_rs = st.number_input(
         "Target Net Profit (₹)",
         min_value=0.0,
@@ -314,7 +242,7 @@ with col_target:
 
 st.divider() 
 
-# --- INPUT FIELDS (Main Body) ---
+# --- INPUT FIELDS (No Change) ---
 col_mrp_in, col_discount_in = st.columns(2)
 
 new_mrp = col_mrp_in.number_input(
@@ -326,7 +254,6 @@ new_mrp = col_mrp_in.number_input(
     label_visibility="visible"
 ) 
 
-# Conditional Discount Input based on Calculation Mode
 if calculation_mode == 'Profit Calculation':
     new_discount = col_discount_in.number_input(
         "Discount Amt (₹)",
@@ -338,16 +265,14 @@ if calculation_mode == 'Profit Calculation':
         label_visibility="visible"
     )
 else:
-    # In Target Discount Finder mode, we don't need a manual discount input
     col_discount_in.info(f"Targeting a Net Profit of ₹ {product_margin_target_rs:,.2f}...")
-    new_discount = 0.0 # Placeholder, will be calculated later
+    new_discount = 0.0
 
 st.divider() 
 
 if new_mrp > 0 and product_cost > 0:
     try:
-        
-        # --- CALCULATION BLOCK (No Change) ---
+        # --- CALCULATION BLOCK ---
         if calculation_mode == 'Target Discount':
             target_profit = product_margin_target_rs
             calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
@@ -369,136 +294,111 @@ if new_mrp > 0 and product_cost > 0:
         delta_label = f"vs Target: ₹ {delta_value:,.2f}"
         delta_color = "normal" if net_profit >= target_profit else "inverse"
             
-        # --- DISPLAY RESULTS ---
+        # --- DISPLAY RESULTS (MODIFIED FOR TWO-COLUMN COMPACT LAYOUT) ---
         
-        # Section 2: Sales and Revenue (Vertical - 3 metrics)
-        st.markdown("###### **2. Sales and Revenue**")
+        # Create two main columns for the output display
+        col_left, col_right = st.columns(2)
         
-        # 1. Product MRP
-        st.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
-
-        # 2. Discount Amount
-        discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
-        st.metric(
-            label="Discount Amount", 
-            value=f"₹ {new_discount:,.2f}",
-            delta=f"{discount_percent:,.2f}% of MRP",
-            delta_color="off"
-        )
+        # =========== LEFT COLUMN: Sales, Fixed Charges, Invoice Value ===========
+        with col_left:
+            st.markdown("###### **2. Sales, Fixed Charges & Invoice Value**")
             
-        # 3. Sale Price
-        st.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
-        
-        st.divider()
-        
-        # Section 2.1: Fixed Charges & Invoice Value (Vertical - 2 metrics)
-        st.markdown("###### **2.1. Fixed Charges & Invoice Value**")
-        
-        # --- MODIFICATION: Vertical Display ---
-        # 1. GT Charge/Fixed Fee display logic
-        if platform_selector == 'Myntra':
-            st.metric(
-                label="GT Charge (Deducted from Sale Price)", 
-                value=f"₹ {gt_charge:,.2f}",
-                delta="Myntra Only",
-                delta_color="off"
-            )
-        elif platform_selector == 'FirstCry': 
-            st.metric(
-                label="Fixed Charges", 
-                value=f"₹ {gt_charge:,.2f}", 
-                delta_color="off"
-            )
-        else: # Ajio (New) display
-            st.metric(
-                label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
-                value=f"₹ {gt_charge:,.2f}", 
-                delta_color="off"
-            )
+            # Sub-row 1: Sales (3 columns)
+            col1_l, col2_l, col3_l = st.columns(3)
             
-        # 2. Invoice Value (CPA)
-        st.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") 
+            col1_l.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
+            
+            discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+            col2_l.metric(
+                label="Discount Amt", 
+                value=f"₹ {new_discount:,.2f}",
+                delta=f"{discount_percent:,.2f}% of MRP",
+                delta_color="off"
+            )
+            col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
+            
+            st.markdown("---") # Custom Divider within the column
+            
+            # Sub-row 2: Fixed Charges & CPA (2 columns)
+            col4_l, col5_l = st.columns(2)
 
-        st.divider() 
+            if platform_selector == 'Myntra':
+                col4_l.metric(
+                    label="GT Charge (Deducted from Sale Price)", 
+                    value=f"₹ {gt_charge:,.2f}",
+                    delta="Myntra Only",
+                    delta_color="off"
+                )
+            elif platform_selector == 'FirstCry': 
+                col4_l.metric(
+                    label="Fixed Charges", 
+                    value=f"₹ {gt_charge:,.2f}", 
+                    delta_color="off"
+                )
+            else: # Ajio (New) display
+                col4_l.metric(
+                    label="SCM Charges (₹95 + 18% GST)", 
+                    value=f"₹ {gt_charge:,.2f}", 
+                    delta_color="off"
+                )
+                
+            col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
         
-        # Section 3: Deductions (Charges) (Vertical - 6 metrics)
-        st.markdown("###### **3. Deductions (Charges)**")
-        
-        # --- MODIFICATION: Vertical Display ---
-        
-        # 1. Commission/Deduction
-        if platform_selector == 'Myntra':
-            st.metric(
-                label=f"Commission ({commission_rate*100:.0f}%+Tax)",
-                value=f"₹ {final_commission:,.2f}",
-            )
-        elif platform_selector == 'FirstCry': 
-            st.metric(
-                label="**Flat Deduction (42% on Sale Price)**",
-                value=f"₹ {final_commission:,.2f}",
-            )
-        else: # Ajio (New) display
-            commission_rate_ajio = 0.20 
-            st.metric(
-                label=f"Commission ({commission_rate_ajio*100:.0f}% on Sale Price + 18% Tax)",
-                value=f"₹ {final_commission:,.2f}",
-            )
-        
-        # 2. Marketing/Other Fees
-        if platform_selector == 'Myntra':
-            st.metric(
+        # =========== RIGHT COLUMN: Deductions and Final Payout ===========
+        with col_right:
+            st.markdown("###### **3. Deductions (Charges)**")
+            
+            # Sub-row 1: Commission, Marketing, Royalty (3 columns)
+            col1_r, col2_r, col3_r = st.columns(3)
+            
+            # Commission
+            if platform_selector == 'Myntra':
+                col1_r.metric(label=f"Commission ({commission_rate*100:.0f}%+Tax)", value=f"₹ {final_commission:,.2f}")
+            elif platform_selector == 'FirstCry': 
+                col1_r.metric(label="**Flat Deduction (42%)**", value=f"₹ {final_commission:,.2f}")
+            else: # Ajio (New) display
+                col1_r.metric(label=f"Commission (20%+Tax)", value=f"₹ {final_commission:,.2f}")
+            
+            # Marketing Fee
+            col2_r.metric(
                 label=f"Marketing Fee ({marketing_fee_rate*100:.0f}%)",
                 value=f"₹ {marketing_fee_base:,.2f}",
             )
-        else:
-             st.metric(
-                label="Marketing/Other Fees", 
-                value=f"₹ {marketing_fee_base:,.2f}", # 0.00 for FC/Ajio
+            
+            # Royalty Fee
+            col3_r.metric(
+                label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
+                value=f"₹ {royalty_fee:,.2f}",
+            )
+            
+            # Sub-row 2: Taxable Value, TDS, TCS (3 columns)
+            col4_r, col5_r, col6_r = st.columns(3)
+
+            col4_r.metric(
+                label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
+                value=f"₹ {taxable_amount_value:,.2f}",
+            )
+            col5_r.metric(label="TDS (0.1%)", value=f"₹ {abs(tds):,.2f}")
+            col6_r.metric(label="TCS (10% on Tax Amt)", value=f"₹ {abs(tcs):,.2f}")
+            
+            st.markdown("---") # Custom Divider within the column
+            
+            # Sub-row 3: Final Payout and Profit (2 columns)
+            st.markdown("###### **4. Final Payout and Profit**")
+            col7_r, col8_r = st.columns(2)
+
+            col7_r.metric(
+                label="**FINAL SETTLED AMOUNT**",
+                value=f"₹ {settled_amount:,.2f}",
                 delta_color="off"
             )
-        
-        # 3. Royalty Fee
-        st.metric(
-            label=f"Royalty Fee ({'10%' if apply_royalty=='Yes' else '0%'})",
-            value=f"₹ {royalty_fee:,.2f}",
-        )
-        
-        # 4. Taxable Value
-        st.metric(
-            label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)",
-            value=f"₹ {taxable_amount_value:,.2f}",
-        )
-        # 5. TDS
-        st.metric(
-            label="TDS (0.1%)",
-            value=f"₹ {abs(tds):,.2f}"
-        )
-        # 6. TCS
-        st.metric(
-            label="TCS (10% on Tax Amt)",
-            value=f"₹ {abs(tcs):,.2f}"
-        )
-
-        st.divider() 
-        
-        # Section 4: Final Payout and Profit (Vertical - 2 metrics)
-        st.markdown("###### **4. Final Payout and Profit**")
-
-        # --- MODIFICATION: Vertical Display ---
-        # 1. FINAL SETTLED AMOUNT
-        st.metric(
-            label="**FINAL SETTLED AMOUNT**",
-            value=f"₹ {settled_amount:,.2f}",
-            delta_color="off"
-        )
-        
-        # 2. NET PROFIT
-        st.metric(
-            label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
-            value=f"₹ {net_profit:,.2f}",
-            delta=delta_label,
-            delta_color=delta_color
-        )
+            
+            col8_r.metric(
+                label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
+                value=f"₹ {net_profit:,.2f}",
+                delta=delta_label,
+                delta_color=delta_color
+            )
 
     except ValueError as e:
         st.error(str(e))
