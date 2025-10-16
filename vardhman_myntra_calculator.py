@@ -29,7 +29,7 @@ st.markdown("""
     
     /* VERTICAL SQUEEZE: Reduce padding/margin in markdown headers from 0.5rem to 0.25rem */
     h1, h2, h3, h4, h5, h6 {
-        margin-top: 0.25rem; 
+        margin-top: 0.5rem; 
         margin-bottom: 0.25rem;
     }
 
@@ -535,6 +535,7 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
 
