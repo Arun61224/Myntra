@@ -410,6 +410,8 @@ if new_mrp > 0 and product_cost > 0:
         
         # Section 2: Sales and Revenue (3 columns)
         st.markdown("###### **2. Sales and Revenue**")
+        
+        # --- MODIFICATION: MRP, Discount, Sale Price in 3 columns ---
         col_mrp_out, col_discount_out, col_sale = st.columns(3)
         
         # Display MRP in the results section too
@@ -438,6 +440,8 @@ if new_mrp > 0 and product_cost > 0:
         
         st.divider()
         
+        # Section 2.1: GT Charge and CPA (2 columns)
+        st.markdown("###### **2.1. Fixed Charges & Invoice Value**")
         col_gt, col_customer = st.columns(2)
         
         # GT Charge/Fixed Fee display logic
@@ -531,6 +535,7 @@ if new_mrp > 0 and product_cost > 0:
         # Section 4: Final Settlement and Profit
         st.markdown("###### **4. Final Payout and Profit**")
 
+        # --- MODIFICATION: Settled Amount and Net Profit in 2 columns ---
         col_settled, col_net_profit = st.columns(2)
 
         col_settled.metric(
