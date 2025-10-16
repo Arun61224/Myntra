@@ -268,7 +268,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         total_deductions += gt_charge
 
     # FINAL SETTLEMENT
-    # As per the user's latest request: Deduct TDS AND TCS from the settled amount.
+    # Deduct TDS AND TCS from the settled amount.
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
 
     net_profit = settled_amount - product_cost
@@ -425,29 +425,36 @@ def get_excel_template():
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
-# --- MAIN MODE SELECTION ---
-calculation_mode = st.radio(
-    "Select Calculation Mode:",
-    ('A. Single Product Calculation', 'B. Bulk Processing (Excel)'),
-    index=0,
-    label_visibility="visible"
-)
+# --- MODE SELECTION ---
+col_calc_mode, col_sub_mode_placeholder = st.columns([1, 1])
 
-# --- Move Sub-Mode here, conditionally display ---
-if calculation_mode == 'A. Single Product Calculation':
-    st.markdown("---") # Add a small separator
-    single_calc_mode = st.radio(
-        "Sub-Mode:",
-        ('Profit Calculation', 'Target Discount'),
+with col_calc_mode:
+    calculation_mode = st.radio(
+        "Select Calculation Mode:",
+        ('A. Single Product Calculation', 'B. Bulk Processing (Excel)'),
         index=0,
-        label_visibility="visible",
-        horizontal=True # Make it horizontal to save vertical space
+        label_visibility="visible"
     )
-    st.divider() # Add a divider after sub-mode
 
-# General divider (always present after calculation mode or sub-mode if applicable)
-else: # For bulk processing, divider should still be there but without sub-mode
-    st.divider()
+# --- Sub-Mode Placement ---
+if calculation_mode == 'A. Single Product Calculation':
+    with col_sub_mode_placeholder:
+        # We need a dummy label to align the Sub-Mode radio button with the main mode
+        st.markdown("Select Sub-Mode:") 
+        single_calc_mode = st.radio(
+            "", # Label is empty as we used markdown for alignment
+            ('Profit Calculation', 'Target Discount'),
+            index=0,
+            label_visibility="collapsed", # Hide the radio label
+            horizontal=True
+        )
+else:
+    # If in Bulk Mode, fill the placeholder column with nothing
+    single_calc_mode = 'Profit Calculation' # Default value for the variable 
+    with col_sub_mode_placeholder:
+        st.write("") 
+
+st.divider()
 
 
 if calculation_mode == 'A. Single Product Calculation':
@@ -527,7 +534,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 help="Enter the weight of the product for shipping fee calculation."
             )
         with col_zone:
-            shipping_zone = st.selectbox(
+            shipping_zone = st.selectbox
                 "Shipping Zone:",
                 ('Local', 'Regional', 'National'),
                 index=0,
