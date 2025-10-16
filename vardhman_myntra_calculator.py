@@ -340,7 +340,7 @@ new_mrp = col_mrp_in.number_input(
 ) 
 
 # Conditional Discount Input based on Calculation Mode
-if calculation_mode == 'Profit Calculation (for given Discount)':
+if calculation_mode == 'Profit Calculation':
     new_discount = col_discount_in.number_input(
         "Discount Amt (₹)",
         min_value=0.0,
@@ -364,7 +364,7 @@ if new_mrp > 0 and product_cost > 0:
         final_profit = 0.0
         
         # --- MODE 1: Target Discount Finder ---
-        if calculation_mode == 'Target Discount Finder (for given Profit)':
+        if calculation_mode == 'Target Discount':
             
             # Find the required discount to meet the target profit
             target_profit = product_margin_target_rs
@@ -542,6 +542,7 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
 
