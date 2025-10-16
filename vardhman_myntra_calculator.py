@@ -275,7 +275,7 @@ with col_config_1:
     # Calculation Mode Selector
     calculation_mode = st.radio(
         "Calculation Mode:",
-        ('Profit Calculation (for given Discount)', 'Target Discount Finder (for given Profit)'),
+        ('Profit Calculation', 'Target Discount'),
         index=0, 
         label_visibility="visible"
     )
@@ -542,6 +542,7 @@ if new_mrp > 0 and product_cost > 0:
         st.error(str(e))
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
 
