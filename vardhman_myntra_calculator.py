@@ -534,7 +534,8 @@ if calculation_mode == 'A. Single Product Calculation':
                 help="Enter the weight of the product for shipping fee calculation."
             )
         with col_zone:
-            shipping_zone = st.selectbox
+            # FIX APPLIED HERE: Corrected the st.selectbox call
+            shipping_zone = st.selectbox(
                 "Shipping Zone:",
                 ('Local', 'Regional', 'National'),
                 index=0,
