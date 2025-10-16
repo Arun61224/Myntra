@@ -11,8 +11,9 @@ st.markdown("""
 <style>
     /* 1. Force a Maximum Width on the main content block and center it */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+        /* VERTICAL SQUEEZE: Reduced from 1rem to 0.5rem */
+        padding-top: 0.5rem; 
+        padding-bottom: 0.5rem; 
         padding-left: 1rem;
         padding-right: 1rem;
         
@@ -26,11 +27,17 @@ st.markdown("""
     
     /* 2. Standard Compactness Rules (from original code) */
     
-    /* Reduce padding/margin in markdown headers */
+    /* VERTICAL SQUEEZE: Reduce padding/margin in markdown headers from 0.5rem to 0.25rem */
     h1, h2, h3, h4, h5, h6 {
-        margin-top: 0.5rem;
-        margin-bottom: 0.5rem;
+        margin-top: 0.25rem; 
+        margin-bottom: 0.25rem;
     }
+
+    /* VERTICAL SQUEEZE: Reduce vertical spacing around st.divider() */
+    hr {
+        margin: 0.5rem 0 !important;
+    }
+    
     /* Reduce space in metric elements */
     [data-testid="stMetric"] {
         padding-top: 0px;
