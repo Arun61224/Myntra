@@ -48,17 +48,17 @@ st.markdown("""
         gap: 0.5rem;
     }
     
-    /* 🔥 3. VERTICAL DIVIDER CSS (New Addition) */
+    /* 🔥 3. VERTICAL DIVIDER CSS (Applied to 2 and 3 column sections only) */
     /* Target the columns container */
     div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(1) {
-        border-right: 1px solid rgba(255, 255, 255, 0.1); /* Line between first and second column */
+        border-right: 1px solid rgba(255, 255, 255, 0.1); 
     }
     div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(2) {
-        border-right: 1px solid rgba(255, 255, 255, 0.1); /* Line between second and third column */
+        border-right: 1px solid rgba(255, 255, 255, 0.1); 
     }
     div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(1),
     div.st-emotion-cache-18ni3p2 > div:nth-child(2) > div:nth-child(2) {
-        padding-right: 1rem; /* Add padding to prevent text from touching the line */
+        padding-right: 1rem; 
     }
     
 </style>
@@ -262,49 +262,47 @@ platform_selector = st.radio(
 st.markdown("##### **Configuration Settings**")
 
 # Row 1: Calculation Mode, Royalty, Marketing Fee - 3 Columns
-# Wrapped in a container with a key to target the CSS correctly
-with st.container(border=False):
-    col_mode, col_royalty, col_marketing = st.columns(3)
+# No vertical lines needed here, so not wrapped in a container for specific CSS
+col_mode, col_royalty, col_marketing = st.columns(3)
+
+with col_mode:
+    # Calculation Mode Selector
+    calculation_mode = st.radio(
+        "Calculation Mode:",
+        ('Profit Calculation', 'Target Discount'),
+        index=0, 
+        label_visibility="visible"
+    )
+
+with col_royalty:
+    # Royalty Fee Radio Button 
+    royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
+    royalty_label = f"Royalty Fee (10% of {royalty_base})?"
     
-    # Replaced st.container() with st.columns() for layout
-    with col_mode:
-        # Calculation Mode Selector
-        calculation_mode = st.radio(
-            "Calculation Mode:",
-            ('Profit Calculation', 'Target Discount'),
-            index=0, 
-            label_visibility="visible"
-        )
+    # Royalty Fee is applicable to all
+    apply_royalty = st.radio(
+        royalty_label,
+        ('Yes', 'No'),
+        index=0, 
+        horizontal=True,
+        label_visibility="visible"
+    )
 
-    with col_royalty:
-        # Royalty Fee Radio Button 
-        royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
-        royalty_label = f"Royalty Fee (10% of {royalty_base})?"
-        
-        # Royalty Fee is applicable to all
-        apply_royalty = st.radio(
-            royalty_label,
-            ('Yes', 'No'),
-            index=0, 
-            horizontal=True,
-            label_visibility="visible"
-        )
-
-    with col_marketing:
-        # Marketing Fee Selectbox (Replaced Radio)
-        marketing_options = ['0%', '4%', '5%']
-        # Set default for Myntra to 4%, others to 0%
-        default_index = marketing_options.index('4%') if platform_selector == 'Myntra' else marketing_options.index('0%')
-        
-        selected_marketing_fee_str = st.selectbox(
-            "Marketing Fee Rate:", 
-            marketing_options,
-            index=default_index,
-            help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
-            key="marketing_fee_selector"
-        )
-        # Convert selected string to a float rate (0.00, 0.04, 0.05)
-        marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
+with col_marketing:
+    # Marketing Fee Selectbox (Replaced Radio)
+    marketing_options = ['0%', '4%', '5%']
+    # Set default for Myntra to 4%, others to 0%
+    default_index = marketing_options.index('4%') if platform_selector == 'Myntra' else marketing_options.index('0%')
+    
+    selected_marketing_fee_str = st.selectbox(
+        "Marketing Fee Rate:", 
+        marketing_options,
+        index=default_index,
+        help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
+        key="marketing_fee_selector"
+    )
+    # Convert selected string to a float rate (0.00, 0.04, 0.05)
+    marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
 
 
 # Row 2: Product Cost, Target Profit - 2 Columns
@@ -389,67 +387,62 @@ if new_mrp > 0 and product_cost > 0:
             
         # --- DISPLAY RESULTS ---
         
-        # Section 2: Sales and Revenue (3 columns)
+        # Section 2: Sales and Revenue (Now Vertical)
         st.markdown("###### **2. Sales and Revenue**")
         
-        # Use st.container() to wrap the 3 columns for CSS targeting
-        with st.container(border=False):
-            col_mrp_out, col_discount_out, col_sale = st.columns(3)
-            
-            # Display MRP in the results section too
-            col_mrp_out.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
+        # --- MODIFICATION: MRP, Discount, Sale Price are now displayed vertically ---
+        
+        # 1. Product MRP
+        st.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
 
-            if calculation_mode == 'Target Discount':
-                discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
-                col_discount_out.metric(
-                    label="Required Discount", 
-                    value=f"₹ {new_discount:,.2f}",
-                    delta=f"{discount_percent:,.2f}% of MRP",
-                    delta_color="off"
-                )
-            else:
-                discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
-                col_discount_out.metric(
-                    label="Discount Amount", 
-                    value=f"₹ {new_discount:,.2f}",
-                    delta=f"{discount_percent:,.2f}% of MRP",
-                    delta_color="off"
-                )
-                
-            col_sale.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
+        # 2. Discount Amount
+        discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+        st.metric(
+            label="Discount Amount", 
+            value=f"₹ {new_discount:,.2f}",
+            delta=f"{discount_percent:,.2f}% of MRP",
+            delta_color="off"
+        )
+            
+        # 3. Sale Price
+        st.metric(label="Sale Price (MRP - Discount)", value=f"₹ {sale_price:,.2f}")
         
         st.divider()
         
-        # Section 2.1: Fixed Charges & Invoice Value (2 columns)
+        # Section 2.1: Fixed Charges & Invoice Value (2 columns, retains vertical lines)
         st.markdown("###### **2.1. Fixed Charges & Invoice Value**")
-        col_gt, col_customer = st.columns(2)
         
-        # GT Charge/Fixed Fee display logic
-        if platform_selector == 'Myntra':
-            col_gt.metric(
-                label="GT Charge (Deducted from Sale Price)", 
-                value=f"₹ {gt_charge:,.2f}",
-                delta="Myntra Only",
-                delta_color="off"
-            )
-        elif platform_selector == 'FirstCry': 
-              col_gt.metric(
-                label="Fixed Charges", 
-                value=f"₹ {gt_charge:,.2f}", # This will be 0.00
-                delta_color="off"
-            )
-        else: # Ajio (New) display
-              col_gt.metric(
-                label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
-                value=f"₹ {gt_charge:,.2f}", 
-                delta_color="off"
-            )
+        # Use st.container() to wrap the 2 columns for CSS targeting
+        with st.container(border=False):
+            # Columns for GT Charge and Invoice Value
+            col_gt, col_customer = st.columns(2)
             
-        col_customer.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") # CPA = Sale Price for Ajio/FC, Sale Price - GT for Myntra
+            # GT Charge/Fixed Fee display logic
+            if platform_selector == 'Myntra':
+                col_gt.metric(
+                    label="GT Charge (Deducted from Sale Price)", 
+                    value=f"₹ {gt_charge:,.2f}",
+                    delta="Myntra Only",
+                    delta_color="off"
+                )
+            elif platform_selector == 'FirstCry': 
+                col_gt.metric(
+                    label="Fixed Charges", 
+                    value=f"₹ {gt_charge:,.2f}", # This will be 0.00
+                    delta_color="off"
+                )
+            else: # Ajio (New) display
+                col_gt.metric(
+                    label="SCM Charges (₹95 + 18% GST) - Not Deducted in Settlement Payout", 
+                    value=f"₹ {gt_charge:,.2f}", 
+                    delta_color="off"
+                )
+                
+            col_customer.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}") # CPA = Sale Price for Ajio/FC, Sale Price - GT for Myntra
 
         st.divider() 
         
-        # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS
+        # Section 3: Deductions (Charges) - 3 COLUMNS, 2 ROWS (retains vertical lines)
         st.markdown("###### **3. Deductions (Charges)**")
         
         # Row 1 (3 columns): Commission/Deduction, Marketing/Other, Royalty
@@ -516,7 +509,7 @@ if new_mrp > 0 and product_cost > 0:
 
         st.divider() 
         
-        # Section 4: Final Settlement and Profit (2 columns)
+        # Section 4: Final Settlement and Profit (2 columns, retains vertical line)
         st.markdown("###### **4. Final Payout and Profit**")
 
         # Use st.container() to wrap the 2 columns for CSS targeting
