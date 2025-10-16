@@ -128,7 +128,7 @@ def calculate_jiomart_shipping_fee(weight_in_kg, shipping_zone):
 
     return total_shipping_fee
 
-# Jiomart Commission Rates (from Image 1)
+# Jiomart Commission Rates (from Image 1 and new categories from Image 2)
 JIOMART_COMMISSION_RATES = {
     "Socks": {"0-500": 0.02, "500+": 0.08},
     "Socks & Stockings": {"0-500": 0.02, "500+": 0.08},
@@ -150,6 +150,10 @@ JIOMART_COMMISSION_RATES = {
     "Tops & Tshirts": {"0-500": 0.05, "500+": 0.09},
     "Tshirts": {"0-500": 0.02, "500+": 0.05},
     "Dresses & Frocks": {"0-500": 0.02, "500+": 0.08},
+    # --- New Categories from image_af17af.png ---
+    "Sets Boys": {"0-500": 0.02, "500+": 0.06}, # 2% for 0-500, 6% for 500+
+    "Sets Girls": {"0-500": 0.02, "500+": 0.08}, # 2% for 0-500, 8% for 500+
+    # ---------------------------------------------
 }
 
 def get_jiomart_commission_rate(product_category, sale_price):
@@ -327,6 +331,8 @@ with col_royalty:
 
 with col_extra_settings: # This column will now handle either Marketing Fee or Jiomart Category
     marketing_fee_rate = 0.0 # Default to 0
+    jiomart_category = None
+    selected_jiomart_category = None
 
     if platform_selector == 'Myntra':
         marketing_options = ['0%', '4%', '5%']
@@ -343,6 +349,7 @@ with col_extra_settings: # This column will now handle either Marketing Fee or J
     elif platform_selector == 'Jiomart':
         jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
         # Add a default 'Select Category' option at the beginning
+        jiomart_category_options.sort() # Sort categories for better UX
         jiomart_category_options.insert(0, "Select Category")
         selected_jiomart_category = st.selectbox(
             "Product Category:",
@@ -357,14 +364,18 @@ with col_extra_settings: # This column will now handle either Marketing Fee or J
         # For FirstCry and Ajio, marketing fee is 0, and no category selection
         st.markdown("Marketing Fee Rate: **0%**") # Display as text or just leave empty
         marketing_fee_rate = 0.0
-        jiomart_category = None
 
 
 # --- Jiomart Specific Inputs (Weight & Zone) ---
 weight_in_kg = 0.0
 shipping_zone = None
 if platform_selector == 'Jiomart':
-    st.markdown("##### **Jiomart Specifics**")
+    # Ensure jiomart_category is set if a category was selected
+    if selected_jiomart_category and selected_jiomart_category != "Select Category":
+        st.markdown(f"###### **Jiomart Specifics - Category: {selected_jiomart_category}**")
+    else:
+        st.markdown("##### **Jiomart Specifics**")
+
     col_weight, col_zone = st.columns(2)
     with col_weight:
         weight_in_kg = st.number_input(
@@ -434,11 +445,14 @@ else:
 st.divider()
 
 if new_mrp > 0 and product_cost > 0:
+    # --- Input Validation for Jiomart ---
+    if platform_selector == 'Jiomart' and jiomart_category is None:
+        st.warning("Please select a **Product Category** for Jiomart calculation.")
+        st.stop()
+    # ------------------------------------
+
     try:
         # --- CALCULATION BLOCK ---
-        # Initialize jiomart_category if not already set by the widget (e.g., if platform isn't Jiomart)
-        if 'jiomart_category' not in locals() and 'jiomart_category' not in globals():
-            jiomart_category = None
 
         if calculation_mode == 'Target Discount':
             target_profit = product_margin_target_rs
