@@ -4,7 +4,7 @@ import numpy as np
 from io import BytesIO
 
 # Set page config for wide layout and minimum gaps, using the specified full title
-FULL_TITLE = "Vardhman Wool Store E.com Calculator"
+FULL_TITLE = "Vardhman Wool Store E-commerce Calculator"
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
 # --- Custom CSS for Compactness & VERTICAL SEPARATION (Kept unchanged) ---
@@ -62,7 +62,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CALCULATION LOGIC FUNCTIONS (UNCHANGED from previous response) ---
+# --- CALCULATION LOGIC FUNCTIONS (UNCHANGED) ---
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -278,17 +278,49 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total)
 
-# --- NEW FUNCTION: Bulk Calculation Handler ---
+# --- Find Discount for Target Profit ---
+def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None):
+    """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
+    # Note: The calculation returns 16 values, we only need the 11th (index 10) for profit
+    results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+    initial_profit = results[10]
+
+    if initial_profit < target_profit:
+        return None, initial_profit, 0.0
+
+    discount_step = 1.0
+    required_discount = 0.0
+
+    while required_discount <= mrp:
+        current_results = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+        current_profit = current_results[10]
+
+        if current_profit < target_profit:
+            final_discount = max(0.0, required_discount - discount_step)
+            final_results = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+            final_profit = final_results[10]
+            discount_percent = (final_discount / mrp) * 100
+            return final_discount, final_profit, discount_percent
+
+        required_discount += discount_step
+
+    final_results = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+    final_profit = final_results[10]
+    return mrp, final_profit, 100.0
+
+
+# --- Bulk Calculation Handler ---
 def bulk_process_data(df):
     """Processes DataFrame rows for multi-platform profit calculation."""
     results = []
 
-    # Fill default/missing values to prevent errors
+    # Fill default/missing values for optional columns
     df['Apply_Royalty'] = df['Apply_Royalty'].fillna('No')
     df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0)
     df['Weight_in_KG'] = df['Weight_in_KG'].fillna(0.5)
     df['Shipping_Zone'] = df['Shipping_Zone'].fillna('Local')
     df['Jiomart_Category'] = df['Jiomart_Category'].fillna(None)
+    df['SKU'] = df['SKU'].fillna('') # Fill SKU with empty string if missing
 
     for index, row in df.iterrows():
         try:
@@ -302,6 +334,7 @@ def bulk_process_data(df):
             weight_in_kg = float(row['Weight_in_KG'])
             shipping_zone = str(row['Shipping_Zone']).strip()
             jiomart_category = str(row['Jiomart_Category']).strip() if pd.notna(row['Jiomart_Category']) else None
+            sku = str(row['SKU']).strip() # Get SKU
 
             # Perform calculation
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
@@ -314,6 +347,7 @@ def bulk_process_data(df):
             # Store result
             result_row = {
                 'ID': index + 1,
+                'SKU': sku, # Add SKU here
                 'Platform': platform,
                 'MRP': mrp,
                 'Discount': discount,
@@ -331,19 +365,21 @@ def bulk_process_data(df):
             results.append(result_row)
 
         except Exception as e:
-            st.warning(f"Error processing row {index + 1}: {e}")
+            st.warning(f"Error processing row {index + 1} (SKU: {row.get('SKU', 'N/A')}): {e}")
             results.append({
                 'ID': index + 1,
-                'Platform': row['Platform'],
+                'SKU': row.get('SKU', 'N/A'),
+                'Platform': row.get('Platform', 'N/A'),
                 'Error': str(e)
             })
 
     return pd.DataFrame(results)
 
-# --- NEW FUNCTION: Template Generation ---
+# --- Template Generation (Updated with SKU) ---
 def get_excel_template():
     """Generates an Excel template for bulk processing."""
     data = {
+        'SKU': ['SKU001', 'SKU002', 'SKU003', 'SKU004'], # Added SKU
         'MRP': [1000.0, 1500.0, 2000.0, 800.0],
         'Discount': [100.0, 300.0, 500.0, 0.0],
         'Product_Cost': [450.0, 600.0, 800.0, 300.0],
@@ -351,7 +387,7 @@ def get_excel_template():
         'Apply_Royalty': ['Yes', 'No', 'Yes', 'No'],
         'Marketing_Fee_Rate': [0.04, 0.0, 0.0, 0.0],
         'Weight_in_KG': [0.5, 0.0, 1.2, 0.0],
-        'Shipping_Zone': ['Local', 'Regional', 'National', 'Local'],
+        'Shipping_Zone': ['Local', None, 'National', None], # Changed Ajio/FirstCry to None for better template
         'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None]
     }
     df = pd.DataFrame(data)
@@ -370,11 +406,15 @@ def get_excel_template():
     zones = ','.join(['Local', 'Regional', 'National'])
     categories = ','.join(JIOMART_COMMISSION_RATES.keys())
 
-    # Apply validations to specific columns/rows
-    worksheet.data_validation('D2:D100', {'validate': 'list', 'source': platforms})
-    worksheet.data_validation('E2:E100', {'validate': 'list', 'source': royalty})
-    worksheet.data_validation('H2:H100', {'validate': 'list', 'source': zones})
-    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': categories})
+    # Update Data Validation ranges due to new SKU column
+    # Platform (E column now)
+    worksheet.data_validation('E2:E100', {'validate': 'list', 'source': platforms})
+    # Apply_Royalty (F column now)
+    worksheet.data_validation('F2:F100', {'validate': 'list', 'source': royalty})
+    # Shipping_Zone (I column now)
+    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
+    # Jiomart_Category (J column now)
+    worksheet.data_validation('J2:J100', {'validate': 'list', 'source': categories})
 
     writer.close()
     processed_data = output.getvalue()
@@ -525,7 +565,7 @@ if calculation_mode == 'A. Single Product Calculation':
 
     if single_calc_mode == 'Profit Calculation':
         new_discount = col_discount_in.number_input(
-            "Discount Amt (₹)",
+            "Discount Amount (₹)",
             min_value=0.0,
             max_value=new_mrp,
             value=500.0,
@@ -552,11 +592,13 @@ if calculation_mode == 'A. Single Product Calculation':
 
             if single_calc_mode == 'Target Discount':
                 target_profit = product_margin_target_rs
-                # find_discount_for_target_profit function is omitted for brevity in this response, 
-                # but it should be available and updated to handle the new arguments
-                # For this example, we proceed with manual discount if target mode is not fully implemented here
-                st.warning("Target Discount mode logic not included in this code block for brevity. Assuming Profit Calculation.")
-                new_discount = 500.0 # Placeholder value
+                calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
+                    new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category
+                )
+                if calculated_discount is None:
+                    st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
+                    st.stop()
+                new_discount = calculated_discount
 
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
              marketing_fee_base, current_marketing_fee_rate, final_commission,
@@ -581,7 +623,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 col1_l.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}", delta_color="off")
                 discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
                 col2_l.metric(
-                    label="Discount Amt",
+                    label="Discount Amount",
                     value=f"₹ {new_discount:,.2f}",
                     delta=f"{discount_percent:,.2f}% of MRP",
                     delta_color="off"
@@ -692,7 +734,7 @@ if calculation_mode == 'A. Single Product Calculation':
 elif calculation_mode == 'B. Bulk Processing (Excel)':
     # --- Bulk Processing Logic ---
     st.markdown("##### **Excel Bulk Processing**")
-    st.info("ℹ️ कृपया अपनी फ़ाइल अपलोड करने से पहले नीचे दिए गए टेम्प्लेट का उपयोग करें।")
+    st.info("ℹ️ Please use the template provided below before uploading your file.")
 
     # Template Download Button
     excel_data = get_excel_template()
@@ -715,10 +757,10 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 input_df = pd.read_excel(uploaded_file)
 
             if input_df.empty:
-                st.warning("अपलोड की गई फ़ाइल खाली है।")
+                st.warning("The uploaded file is empty.")
                 st.stop()
 
-            st.success(f"फ़ाइल **{uploaded_file.name}** में {len(input_df)} उत्पाद डेटा सफलतापूर्वक लोड किया गया। अब प्रोसेसिंग शुरू कर रहे हैं...")
+            st.success(f"Successfully loaded {len(input_df)} product data from **{uploaded_file.name}**. Starting processing now...")
 
             # Process the data
             output_df = bulk_process_data(input_df)
@@ -756,13 +798,5 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             )
 
         except Exception as e:
-            st.error(f"फ़ाइल प्रोसेसिंग में त्रुटि हुई: {e}")
-            st.info("सुनिश्चित करें कि आपके कॉलम नाम टेम्प्लेट से मेल खाते हैं (जैसे: MRP, Platform, Discount, आदि) और डेटा सही फॉर्मेट में है।")
-
-# Placeholder for find_discount_for_target_profit function definition (must be present in the full script)
-def find_discount_for_target_profit(*args, **kwargs):
-    # This is a placeholder. The original function from your previous code must be included here.
-    # Since it's not strictly needed for the Bulk Processing (which assumes manual Discount input),
-    # and to keep this response concise, I will skip defining it here.
-    # If the user runs the original full script, the original function will be available.
-    pass
+            st.error(f"An error occurred during file processing: {e}")
+            st.info("Please ensure your column names match the template (e.g., MRP, Platform, Discount, etc.) and the data is in the correct format.")
