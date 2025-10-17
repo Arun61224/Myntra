@@ -7,57 +7,57 @@ from io import BytesIO
 FULL_TITLE = "Vardhman Wool Store E-commerce Calculator"
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Custom CSS for Compactness & VERTICAL SEPARATION (Kept unchanged) ---
+# --- Custom CSS for Compactness & VERTICAL SEPARATION (Cleaned U+00A0) ---
 st.markdown("""
 <style>
-    /* 1. Force a Maximum Width on the main content block and center it */
-    .block-container {
-        padding-top: 1.25rem;
-        padding-bottom: 0.5rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
-        max-width: 1840px;
-        margin-left: auto;
-        margin-right: auto;
-    }
+    /* 1. Force a Maximum Width on the main content block and center it */
+    .block-container {
+        padding-top: 1.25rem;
+        padding-bottom: 0.5rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 1840px;
+        margin-left: auto;
+        margin-right: auto;
+    }
 
-    /* 2. Standard Compactness Rules */
-    h1, h2, h3, h4, h5, h6 {
-        margin-top: 0.5rem;
-        margin-bottom: 0.25rem;
-    }
-    h1 {
-        font-size: 2.25rem;
-        line-height: 1.1;
-        margin-top: 1.0rem;
-    }
-    hr {
-        margin: 0.5rem 0 !important;
-    }
-    [data-testid="stMetric"] {
-        padding-top: 0px;
-        padding-bottom: 0px;
-    }
-    [data-testid="stMetricLabel"] {
-        margin-bottom: -0.1rem;
-        font-size: 0.8rem;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 1.5rem;
-    }
-    /* Set a tighter gap for the new two-column main results area */
-    .st-emotion-cache-12quz0q {
-        gap: 0.75rem;
-    }
+    /* 2. Standard Compactness Rules */
+    h1, h2, h3, h4, h5, h6 {
+        margin-top: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+    h1 {
+        font-size: 2.25rem;
+        line-height: 1.1;
+        margin-top: 1.0rem;
+    }
+    hr {
+        margin: 0.5rem 0 !important;
+    }
+    [data-testid="stMetric"] {
+        padding-top: 0px;
+        padding-bottom: 0px;
+    }
+    [data-testid="stMetricLabel"] {
+        margin-bottom: -0.1rem;
+        font-size: 0.8rem;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem;
+    }
+    /* Set a tighter gap for the new two-column main results area */
+    .st-emotion-cache-12quz0q {
+        gap: 0.75rem;
+    }
 
-    /* 🔥 3. VERTICAL DIVIDER FOR MAIN COLUMNS */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
-        padding-right: 1rem;
-    }
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
-        padding-left: 1rem;
-    }
+    /* 🔥 3. VERTICAL DIVIDER FOR MAIN COLUMNS */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) {
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        padding-right: 1rem;
+    }
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) {
+        padding-left: 1rem;
+    }
 
 </style>
 """, unsafe_allow_html=True)
@@ -180,132 +180,126 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     """Performs all sequential calculations for profit analysis based on platform.
         Returns 16 values.
     """
-    sale_price = mrp - discount
-    if sale_price < 0:
-        return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-
+    
     gt_charge = 0.0
     royalty_fee = 0.0
     marketing_fee_base = 0.0
     final_commission = 0.0
     commission_rate = 0.0
-    customer_paid_amount = sale_price # Default to Sale Price
-
     jiomart_fixed_fee_total = 0.0
     jiomart_shipping_fee_total = 0.0
     total_fixed_charge = 0.0 # Used for all other fixed charges
-
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
 
     # --- PLATFORM SPECIFIC LOGIC ---
-    if platform == 'Myntra':
-        gt_charge = calculate_myntra_gt_charges(sale_price)
-        customer_paid_amount = sale_price - gt_charge
-        commission_rate = get_myntra_commission_rate(customer_paid_amount)
-        commission_amount_base = customer_paid_amount * commission_rate
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0
-        marketing_fee_base = customer_paid_amount * marketing_fee_rate
-        commission_tax = commission_amount_base * 0.18
-        final_commission = commission_amount_base + commission_tax
-        total_fixed_charge = gt_charge # Myntra GT charge is fixed/shipping
-        
-    elif platform == 'FirstCry':
-        commission_rate = 0.42
-        final_commission = sale_price * commission_rate
-        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
-        gt_charge = 0.0
-        marketing_fee_base = 0.0
-        customer_paid_amount = sale_price
-        marketing_fee_rate = 0.0
-        total_fixed_charge = 0.0
-
-    elif platform == 'Ajio':
-        commission_rate = 0.20
-        commission_base = sale_price * commission_rate
-        commission_tax = commission_base * 0.18
-        final_commission = commission_base + commission_tax
-        scm_base = 95.0
-        scm_tax = scm_base * 0.18
-        gt_charge = scm_base + scm_tax # SCM is the fixed/shipping charge here
-        customer_paid_amount = sale_price
-        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
-        marketing_fee_base = 0.0
-        marketing_fee_rate = 0.0
-        total_fixed_charge = gt_charge
-
-    elif platform == 'Jiomart':
-        # 1. Fixed Fee (Base + 18% GST)
-        jiomart_fixed_fee = calculate_jiomart_fixed_fee_base(sale_price)
-        jiomart_fixed_fee_total = jiomart_fixed_fee * (1 + GST_RATE_FEES)
-
-        # 2. Shipping Fee (Base + 18% GST)
-        if shipping_zone and weight_in_kg > 0:
-            jiomart_shipping_fee = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone)
-        jiomart_shipping_fee_total = jiomart_shipping_fee * (1 + GST_RATE_FEES)
-
-        # 3. Commission (Base + 18% GST)
-        if jiomart_category:
-            commission_rate = get_jiomart_commission_rate(jiomart_category, sale_price)
-        else:
-            commission_rate = 0.0
-        commission_base = sale_price * commission_rate
-        commission_tax = commission_base * GST_RATE_FEES
-        final_commission = commission_base + commission_tax
-
-        customer_paid_amount = sale_price
-        royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
-        marketing_fee_base = 0.0
-        marketing_fee_rate = 0.0
-        total_fixed_charge = jiomart_fixed_fee_total + jiomart_shipping_fee_total
-        
-    # --- NEW LOGIC FOR MEESHO ---
-    elif platform == 'Meesho':
-        # For Meesho, Sale Price = MRP (No discount)
-        # Customer Paid Amount is the Wrong/Defective Price
-        if wrong_defective_price is None:
-            # Handle case where price is not provided in single mode
+    if platform == 'Meesho':
+        # 1. Price Logic (WDP is the final Sale Price/CPA for calculation)
+        if wrong_defective_price is None or wrong_defective_price <= 0:
+            # Fallback for bulk processing if WDP is missing
             customer_paid_amount = mrp
         else:
             customer_paid_amount = wrong_defective_price
+            
+        sale_price = customer_paid_amount
+        discount = mrp - sale_price
 
-        sale_price = mrp
-        discount = 0.0
-        
+        # 2. Commission
         commission_rate = meesho_charge_rate # Charge rate (e.g., 2% to 5%)
         commission_base = customer_paid_amount * commission_rate
         commission_tax = commission_base * GST_RATE_FEES # 18% GST on the base fee
         final_commission = commission_base + commission_tax
 
-        # No other charges apply for Meesho in this model
+        # 3. No other charges
         royalty_fee = 0.0
         marketing_fee_base = 0.0
         gt_charge = 0.0
         marketing_fee_rate = 0.0
-        jiomart_fixed_fee_total = 0.0
-        jiomart_shipping_fee_total = 0.0
-        total_fixed_charge = 0.0 # Fixed/Shipping charge is effectively part of Commission
+        total_fixed_charge = 0.0
 
-    # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
+    else: # Myntra, FirstCry, Ajio, Jiomart (use standard discount logic)
+        sale_price = mrp - discount
+        
+        if sale_price < 0:
+            # Return early if sale price is negative after standard discount
+            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+        customer_paid_amount = sale_price # Default to Sale Price
+
+        if platform == 'Myntra':
+            gt_charge = calculate_myntra_gt_charges(sale_price)
+            customer_paid_amount = sale_price - gt_charge
+            commission_rate = get_myntra_commission_rate(customer_paid_amount)
+            commission_amount_base = customer_paid_amount * commission_rate
+            royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0
+            marketing_fee_base = customer_paid_amount * marketing_fee_rate
+            commission_tax = commission_amount_base * 0.18
+            final_commission = commission_amount_base + commission_tax
+            total_fixed_charge = gt_charge
+            
+        elif platform == 'FirstCry':
+            commission_rate = 0.42
+            final_commission = sale_price * commission_rate
+            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            gt_charge = 0.0
+            marketing_fee_base = 0.0
+            marketing_fee_rate = 0.0
+            total_fixed_charge = 0.0
+
+        elif platform == 'Ajio':
+            commission_rate = 0.20
+            commission_base = sale_price * commission_rate
+            commission_tax = commission_base * 0.18
+            final_commission = commission_base + commission_tax
+            scm_base = 95.0
+            scm_tax = scm_base * 0.18
+            gt_charge = scm_base + scm_tax # SCM is the fixed/shipping charge here
+            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            marketing_fee_base = 0.0
+            marketing_fee_rate = 0.0
+            total_fixed_charge = gt_charge
+
+        elif platform == 'Jiomart':
+            # 1. Fixed Fee (Base + 18% GST)
+            jiomart_fixed_fee = calculate_jiomart_fixed_fee_base(sale_price)
+            jiomart_fixed_fee_total = jiomart_fixed_fee * (1 + GST_RATE_FEES)
+
+            # 2. Shipping Fee (Base + 18% GST)
+            if shipping_zone and weight_in_kg > 0:
+                jiomart_shipping_fee = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone)
+            jiomart_shipping_fee_total = jiomart_shipping_fee * (1 + GST_RATE_FEES)
+
+            # 3. Commission (Base + 18% GST)
+            if jiomart_category:
+                commission_rate = get_jiomart_commission_rate(jiomart_category, sale_price)
+            else:
+                commission_rate = 0.0
+            commission_base = sale_price * commission_rate
+            commission_tax = commission_base * GST_RATE_FEES
+            final_commission = commission_base + commission_tax
+
+            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            marketing_fee_base = 0.0
+            marketing_fee_rate = 0.0
+            total_fixed_charge = jiomart_fixed_fee_total + jiomart_shipping_fee_total
+
+
+    # --- COMMON TAX AND FINAL SETTLEMENT LOGIC (Based on Customer Paid Amount) ---
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     tax_amount = customer_paid_amount - taxable_amount_value
-    tcs = taxable_amount_value * 0.001 # 0.1% TDS on Taxable Value
-    tds = tax_amount * 0.10 # 10% TCS on Tax Amount
+    tds = taxable_amount_value * 0.001 # 0.1% TDS on Taxable Value
+    tcs = tax_amount * 0.10 # 10% TCS on Tax Amount (on Tax component of CPA)
 
     # DEDUCTIONS
-    # Total deductions are Commission + Royalty + Marketing + Platform Fees (GT/SCM/Jiomart Fees)
     total_deductions = final_commission + royalty_fee + marketing_fee_base
 
-    # Add platform-specific fixed charges (GT/SCM/Jiomart Fees) - only if they haven't been accounted for in the main logic (e.g., Meesho has no extra fixed charge)
+    # Add platform-specific fixed charges (GT/SCM/Jiomart Fees) 
     if platform in ['Myntra', 'Ajio']:
         total_deductions += gt_charge
     elif platform == 'Jiomart':
         total_deductions += jiomart_fixed_fee_total + jiomart_shipping_fee_total
-
+        
     # FINAL SETTLEMENT
-    # Deduct TDS AND TCS from the settled amount.
-    
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
-
     net_profit = settled_amount - product_cost
 
     return (sale_price, total_fixed_charge, customer_paid_amount, royalty_fee,
@@ -313,15 +307,27 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total)
 
-# --- Find Discount for Target Profit (MODIFIED to handle Meesho as No Discount) ---
+# --- Find Discount for Target Profit (MODIFIED for Meesho) ---
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
     if platform == 'Meesho':
-        # Meesho doesn't use discount. Calculate profit at 0 discount and use that.
-        results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price)
+        # Meesho uses WDP, so the "discount" is fixed: MRP - WDP. Calculation is direct.
+        # We ensure WDP is used as the base
+        if wrong_defective_price is None or wrong_defective_price <= 0:
+            # Fallback to MRP if WDP is not set
+            final_wdp = mrp 
+        else:
+            final_wdp = wrong_defective_price
+            
+        results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, 
+                                     weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, final_wdp)
         initial_profit = results[10]
-        return 0.0, initial_profit, 0.0 # Return 0 discount as fixed price
+        # Return discount that results in WDP
+        discount_amount = mrp - final_wdp
+        discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
+        return discount_amount, initial_profit, discount_percent 
+
 
     # Original logic for other platforms
     results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
@@ -366,7 +372,7 @@ def bulk_process_data(df):
     
     # New Meesho specific columns
     df['Meesho_Charge_Rate'] = df['Meesho_Charge_Rate'].fillna(0.03) # Default 3% charge
-    df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0) # Will be overwritten for Meesho
+    df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
 
     for index, row in df.iterrows():
         try:
@@ -384,12 +390,14 @@ def bulk_process_data(df):
             
             # Meesho Specific Overrides/Inputs
             meesho_charge_rate = float(row['Meesho_Charge_Rate'])
-            wrong_defective_price = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) and platform == 'Meesho' else None
+            wrong_defective_price = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) else None
             
             if platform == 'Meesho':
-                discount = 0.0 # Force discount to 0 for Meesho
-                if wrong_defective_price is None or wrong_defective_price <= 0:
-                    wrong_defective_price = mrp # Default to MRP if not provided
+                # Discount/Sale Price is derived from WDP in perform_calculations
+                pass 
+            else:
+                # Use regular discount if not Meesho
+                wrong_defective_price = None
 
             # Perform calculation
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
@@ -443,7 +451,7 @@ def get_excel_template():
     data = {
         'SKU': ['SKU001', 'SKU002', 'SKU003', 'SKU004', 'SKU005'],
         'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0],
-        'Discount': [100.0, 300.0, 500.0, 0.0, 0.0], # Discount is 0 for Meesho
+        'Discount': [100.0, 300.0, 500.0, 0.0, 0.0], # Discount is 0 for Meesho in Bulk Input
         'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0],
         'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho'], # Added Meesho
         'Apply_Royalty': ['Yes', 'No', 'Yes', 'No', 'No'],
@@ -677,10 +685,10 @@ if calculation_mode == 'A. Single Product Calculation':
             value=min(new_mrp, 2000.0), # Default less than MRP
             step=10.0,
             key="meesho_wdp_manual",
-            help="This is the value Meesho uses for charging its fees (Payout Value).",
+            help="This is the value Meesho uses for charging its fees (Payout Value). This is treated as the Sale Price.",
             label_visibility="visible"
         )
-        new_discount = 0.0 # Force discount to 0
+        new_discount = 0.0 # Will be calculated as MRP - WDP
     
     else: # Other Platforms: Input Discount
         meesho_charge_percent = 0.0 # Reset Meesho values
@@ -717,7 +725,8 @@ if calculation_mode == 'A. Single Product Calculation':
 
         try:
             # --- CALCULATION BLOCK (Single) ---
-
+            
+            # Determine initial discount based on mode
             if single_calc_mode == 'Target Discount' and platform_selector != 'Meesho':
                 target_profit = product_margin_target_rs
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
@@ -727,18 +736,17 @@ if calculation_mode == 'A. Single Product Calculation':
                     st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
                     st.stop()
                 new_discount = calculated_discount
-                # Recalculate based on found discount
-                (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-                 marketing_fee_base, current_marketing_fee_rate, final_commission,
-                 commission_rate, settled_amount, taxable_amount_value,
-                 net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category)
-
-            else:
-                # Standard Calculation (Profit Calc Mode OR Meesho)
-                (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-                 marketing_fee_base, current_marketing_fee_rate, final_commission,
-                 commission_rate, settled_amount, taxable_amount_value,
-                 net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price)
+            elif single_calc_mode == 'Target Discount' and platform_selector == 'Meesho':
+                # Meesho Target Discount will calculate the necessary WDP to hit target, 
+                # but since we can't change WDP here, we just run the profit calculation on current WDP 
+                # and display the profit delta. WDP is fixed here.
+                pass 
+                
+            # Perform calculation (using the final determined discount/WDP)
+            (sale_price, gt_charge, customer_paid_amount, royalty_fee,
+             marketing_fee_base, current_marketing_fee_rate, final_commission,
+             commission_rate, settled_amount, taxable_amount_value,
+             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price)
 
 
             target_profit = product_margin_target_rs
@@ -800,13 +808,18 @@ if calculation_mode == 'A. Single Product Calculation':
                         )
                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
-                else: # MEESHO Display
+                else: # MEESHO Display (WDP = Sale Price = CPA)
+                    # We recalculate discount and sale_price using WDP for display purposes
+                    calculated_discount = new_mrp - wrong_defective_price
+                    discount_percent = (calculated_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+                    
                     col2_l.metric(
-                        label="Wrong/Defective Price (WDP)",
-                        value=f"₹ {wrong_defective_price:,.2f}",
+                        label="Discount Amount (MRP - WDP)",
+                        value=f"₹ {calculated_discount:,.2f}",
+                        delta=f"{discount_percent:,.2f}% of MRP",
                         delta_color="off"
                     )
-                    col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
+                    col3_l.metric(label="Sale Price (WDP)", value=f"₹ {sale_price:,.2f}")
                     st.markdown("---")
                     col4_l, col5_l = st.columns(2)
                     col4_l.metric(
@@ -814,7 +827,7 @@ if calculation_mode == 'A. Single Product Calculation':
                         value=f"₹ 0.00",
                         delta_color="off"
                     )
-                    col5_l.metric(label="**Invoice Value (WDP)**", value=f"₹ {customer_paid_amount:,.2f}")
+                    col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
 
             # =========== RIGHT COLUMN: Deductions and Final Payout ===========
