@@ -642,7 +642,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 "Meesho Platform Charge (%)",
                 min_value=0.0,
                 max_value=10.0,
-                value=3.0,
+                value=5.0,
                 step=0.1,
                 format="%.2f",
                 help="The fee is typically 2% to 5% of the Wrong/Defective Price.",
@@ -1052,3 +1052,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template (e.g., MRP, Platform, Discount, etc.) and the data is in the correct format.")
+
