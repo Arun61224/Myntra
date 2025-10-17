@@ -210,7 +210,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         final_commission = commission_base + commission_tax
 
         # 3. No other charges
-        royalty_fee = 0.0
+        # royalty_fee calculated below, globally on sale_price
         marketing_fee_base = 0.0
         gt_charge = 0.0
         marketing_fee_rate = 0.0
@@ -230,7 +230,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             customer_paid_amount = sale_price - gt_charge
             commission_rate = get_myntra_commission_rate(customer_paid_amount)
             commission_amount_base = customer_paid_amount * commission_rate
-            royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0
+            # royalty_fee calculated below, globally on sale_price (was customer_paid_amount)
             marketing_fee_base = customer_paid_amount * marketing_fee_rate
             commission_tax = commission_amount_base * 0.18
             final_commission = commission_amount_base + commission_tax
@@ -239,7 +239,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         elif platform == 'FirstCry':
             commission_rate = 0.42
             final_commission = sale_price * commission_rate
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            # royalty_fee calculated below, globally on sale_price
             gt_charge = 0.0
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
@@ -253,7 +253,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             scm_base = 95.0
             scm_tax = scm_base * 0.18
             gt_charge = scm_base + scm_tax # SCM is the fixed/shipping charge here
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            # royalty_fee calculated below, globally on sale_price
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
             total_fixed_charge = gt_charge
@@ -277,11 +277,14 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_tax = commission_base * GST_RATE_FEES
             final_commission = commission_base + commission_tax
 
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+            # royalty_fee calculated below, globally on sale_price
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
             total_fixed_charge = jiomart_fixed_fee_total + jiomart_shipping_fee_total
-
+            
+    # --- Apply Royalty universally based on Sale Price (Selling Price) ---
+    if apply_royalty == 'Yes':
+        royalty_fee = sale_price * 0.10 # Standardized on Sale Price (MRP - Discount/WDP)
 
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC (Based on Customer Paid Amount) ---
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
@@ -312,7 +315,9 @@ def find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_c
     """Finds the required Wrong/Defective Price (WDP) to achieve target_profit by iterating."""
     
     # Check max possible profit at highest WDP (MRP)
-    max_results = perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+    # Note: apply_royalty must be passed here for correct max_profit calculation
+    # Using 'Yes' for safety, though user input will be retrieved in the caller
+    max_results = perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
                                       meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
     max_profit = max_results[10]
 
@@ -328,7 +333,8 @@ def find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_c
         # Use rounding to avoid float precision issues during iteration check
         current_wdp_check = round(required_wdp, 2)
         
-        current_results = perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+        # Note: apply_royalty must be passed here for correct profit calculation
+        current_results = perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
                                                meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
         current_profit = current_results[10]
 
@@ -341,7 +347,7 @@ def find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_c
         required_wdp -= wdp_step
         
     # If the required WDP is 0 or less, return 0
-    return 0.0, perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+    return 0.0, perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
                                      meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
 
 
@@ -351,22 +357,51 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
 
     if platform == 'Meesho':
         # --- MEESHO TARGET WDP CALCULATION ---
-        target_wdp, initial_max_profit = find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_cost)
+        # NOTE: We need to ensure that the apply_royalty argument is respected in the finding function.
+        # However, the find_wdp_for_target_profit function doesn't take apply_royalty directly, 
+        # so we will use a dedicated target WDP finder logic for Meesho below.
         
-        if target_wdp is None:
-            # Cannot achieve target even at MRP
+        # --- MEESHO TARGET WDP CALCULATION (Inlined logic using apply_royalty) ---
+        
+        # Check max possible profit at highest WDP (MRP)
+        max_results = perform_calculations(mrp, 0.0, apply_royalty, 0.0, product_cost, 'Meesho', 
+                                          meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
+        initial_max_profit = max_results[10]
+
+        if initial_max_profit < target_profit:
             return None, initial_max_profit, 0.0
             
-        # Calculate equivalent discount based on the target WDP
-        discount_amount = mrp - target_wdp
-        discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
-        
-        # Recalculate profit using the found WDP to get the final profit value (which should be >= target_profit)
-        results = perform_calculations(mrp, discount_amount, 'No', 0.0, product_cost, 'Meesho', 
-                                       meesho_charge_rate=meesho_charge_rate, wrong_defective_price=target_wdp)
-        final_profit = results[10]
+        wdp_step = 1.0
+        required_wdp = mrp
 
-        return discount_amount, final_profit, discount_percent 
+        while required_wdp >= 0:
+            current_wdp_check = round(required_wdp, 2)
+            current_results = perform_calculations(mrp, 0.0, apply_royalty, 0.0, product_cost, 'Meesho', 
+                                                   meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
+            current_profit = current_results[10]
+
+            if current_profit < target_profit:
+                final_wdp = required_wdp + wdp_step
+                target_wdp = min(final_wdp, mrp)
+                
+                # Calculate equivalent discount based on the target WDP
+                discount_amount = mrp - target_wdp
+                discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
+                
+                # Recalculate profit using the found WDP to get the final profit value
+                results = perform_calculations(mrp, discount_amount, apply_royalty, 0.0, product_cost, 'Meesho', 
+                                               meesho_charge_rate=meesho_charge_rate, wrong_defective_price=target_wdp)
+                final_profit = results[10]
+
+                return discount_amount, final_profit, discount_percent 
+
+            required_wdp -= wdp_step
+        
+        # Final fallback for when WDP reaches zero
+        discount_amount = mrp - 0.0
+        final_profit = perform_calculations(mrp, discount_amount, apply_royalty, 0.0, product_cost, 'Meesho', 
+                                            meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
+        return discount_amount, final_profit, 100.0
 
 
     # Original logic for other platforms
@@ -581,75 +616,74 @@ if calculation_mode == 'A. Single Product Calculation':
     )
     st.markdown("##### **Configuration Settings**")
     
-    # Flag to determine if WDP is being calculated or manually entered (for UI control)
-    is_wdp_calculated = (platform_selector == 'Meesho' and single_calc_mode == 'Target Discount')
-    
-    if platform_selector != 'Meesho':
-        col_royalty, col_extra_settings = st.columns(2) 
-        royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
-        apply_royalty = col_royalty.radio(
+    # Define the two columns for main settings
+    col_royalty, col_extra_settings = st.columns(2)
+
+    # --- Royalty --- (ALWAYS VISIBLE)
+    with col_royalty:
+        royalty_base = 'Sale Price'
+        apply_royalty = st.radio(
             f"Royalty Fee (10% of {royalty_base})?",
             ('Yes', 'No'),
-            index=1, # Default to No for new setup
+            index=1, 
             horizontal=True,
             label_visibility="visible"
         )
-        # Marketing/Category Setup
-        with col_extra_settings:
-            marketing_fee_rate = 0.0
-            jiomart_category = None
-            selected_jiomart_category = None
 
-            if platform_selector == 'Myntra':
-                marketing_options = ['0%', '4%', '5%']
-                default_index = marketing_options.index('4%')
-                selected_marketing_fee_str = st.selectbox(
-                    "Marketing Fee Rate:",
-                    marketing_options,
-                    index=default_index,
-                    help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
-                    key="marketing_fee_selector",
-                    disabled=(platform_selector != 'Myntra')
-                )
-                marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
-            elif platform_selector == 'Jiomart':
-                jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
-                jiomart_category_options.sort()
-                jiomart_category_options.insert(0, "Select Category")
-                selected_jiomart_category = st.selectbox(
-                    "Product Category:",
-                    jiomart_category_options,
-                    index=0,
-                    help="Select the product category for Jiomart commission calculation.",
-                    key="jiomart_category_selector"
-                )
-                jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
-            else:
-                st.markdown("Marketing Fee Rate: **0%**")
-                marketing_fee_rate = 0.0
-                apply_royalty = 'No'
-
-    # --- NEW MEESHO CONFIGURATION ---
-    else: # platform_selector == 'Meesho'
-        apply_royalty = 'No'
+    # Flag to determine if WDP is being calculated or manually entered (for UI control)
+    is_wdp_calculated = (platform_selector == 'Meesho' and single_calc_mode == 'Target Discount')
+    
+    # --- Marketing/Category/Meesho Config ---
+    with col_extra_settings:
         marketing_fee_rate = 0.0
         jiomart_category = None
+        meesho_charge_rate = 0.0 # Default value if Meesho is not selected
         
-        col_meesho_config, col_meesho_placeholder = st.columns(2)
-        
-        with col_meesho_config:
+        if platform_selector == 'Myntra':
+            # Myntra: Marketing Fee Selector
+            marketing_options = ['0%', '4%', '5%']
+            default_index = marketing_options.index('4%')
+            selected_marketing_fee_str = st.selectbox(
+                "Marketing Fee Rate:",
+                marketing_options,
+                index=default_index,
+                help="Rate applied to CPA (Customer Paid Amount) on Myntra.",
+                key="marketing_fee_selector"
+            )
+            marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
+            
+        elif platform_selector == 'Jiomart':
+            # Jiomart: Category Selector
+            jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
+            jiomart_category_options.sort()
+            jiomart_category_options.insert(0, "Select Category")
+            selected_jiomart_category = st.selectbox(
+                "Product Category:",
+                jiomart_category_options,
+                index=0,
+                help="Select the product category for Jiomart commission calculation.",
+                key="jiomart_category_selector"
+            )
+            jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
+            
+        elif platform_selector == 'Meesho':
+            # Meesho: Charge Rate Input
             meesho_charge_percent = st.number_input(
                 "Meesho Platform Charge (%)",
                 min_value=0.0,
                 max_value=10.0,
-                value=5.0,
+                value=3.0,
                 step=0.1,
                 format="%.2f",
                 help="The fee is typically 2% to 5% of the Wrong/Defective Price.",
                 key="meesho_charge_rate_single"
             ) / 100.0
-            
             st.info(f"Payout is approx. **{(1 - meesho_charge_percent) * 100:.2f}%** of Wrong/Defective Price.")
+            meesho_charge_rate = meesho_charge_percent
+            
+        else: # FirstCry, Ajio
+            st.markdown("Marketing Fee Rate: **0%**")
+            marketing_fee_rate = 0.0
 
 
     # --- Jiomart Specific Inputs (Weight & Zone) ---
@@ -740,7 +774,6 @@ if calculation_mode == 'A. Single Product Calculation':
             new_discount = 0.0 # Will be calculated as MRP - WDP
     
     else: # Other Platforms: Input Discount
-        meesho_charge_percent = 0.0 # Reset Meesho values
         
         if single_calc_mode == 'Profit Calculation':
             new_discount = col_price_in.number_input(
@@ -757,13 +790,6 @@ if calculation_mode == 'A. Single Product Calculation':
             new_discount = 0.0 # Will be calculated by logic
 
     st.divider()
-    
-    # Handle the meesho_charge_rate assignment for the function call
-    if platform_selector != 'Meesho':
-        meesho_charge_rate = 0.0
-    else:
-        # Use the value from the new config input
-        meesho_charge_rate = meesho_charge_percent
 
     if new_mrp > 0 and product_cost > 0:
         # --- Input Validation for Jiomart ---
@@ -1052,4 +1078,3 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template (e.g., MRP, Platform, Discount, etc.) and the data is in the correct format.")
-
