@@ -307,26 +307,66 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total)
 
+# --- New Function to find WDP for Meesho Target Profit ---
+def find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_cost):
+    """Finds the required Wrong/Defective Price (WDP) to achieve target_profit by iterating."""
+    
+    # Check max possible profit at highest WDP (MRP)
+    max_results = perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+                                      meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
+    max_profit = max_results[10]
+
+    if max_profit < target_profit:
+        return None, max_profit
+
+    # Iterate backwards from MRP until target profit is hit
+    # Start step can be larger for faster checks, but using 1.0 for precise finding
+    wdp_step = 1.0
+    required_wdp = mrp
+
+    while required_wdp >= 0:
+        # Use rounding to avoid float precision issues during iteration check
+        current_wdp_check = round(required_wdp, 2)
+        
+        current_results = perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+                                               meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
+        current_profit = current_results[10]
+
+        if current_profit < target_profit:
+            # The last successful WDP was (required_wdp + wdp_step)
+            final_wdp = required_wdp + wdp_step
+            # Ensure final WDP does not exceed MRP
+            return min(final_wdp, mrp), current_results[10] 
+
+        required_wdp -= wdp_step
+        
+    # If the required WDP is 0 or less, return 0
+    return 0.0, perform_calculations(mrp, 0.0, 'No', 0.0, product_cost, 'Meesho', 
+                                     meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
+
+
 # --- Find Discount for Target Profit (MODIFIED for Meesho) ---
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
     if platform == 'Meesho':
-        # Meesho uses WDP, so the "discount" is fixed: MRP - WDP. Calculation is direct.
-        # We ensure WDP is used as the base
-        if wrong_defective_price is None or wrong_defective_price <= 0:
-            # Fallback to MRP if WDP is not set
-            final_wdp = mrp 
-        else:
-            final_wdp = wrong_defective_price
+        # --- MEESHO TARGET WDP CALCULATION ---
+        target_wdp, initial_max_profit = find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_cost)
+        
+        if target_wdp is None:
+            # Cannot achieve target even at MRP
+            return None, initial_max_profit, 0.0
             
-        results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, 
-                                     weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, final_wdp)
-        initial_profit = results[10]
-        # Return discount that results in WDP
-        discount_amount = mrp - final_wdp
+        # Calculate equivalent discount based on the target WDP
+        discount_amount = mrp - target_wdp
         discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
-        return discount_amount, initial_profit, discount_percent 
+        
+        # Recalculate profit using the found WDP to get the final profit value (which should be >= target_profit)
+        results = perform_calculations(mrp, discount_amount, 'No', 0.0, product_cost, 'Meesho', 
+                                       meesho_charge_rate=meesho_charge_rate, wrong_defective_price=target_wdp)
+        final_profit = results[10]
+
+        return discount_amount, final_profit, discount_percent 
 
 
     # Original logic for other platforms
@@ -541,6 +581,9 @@ if calculation_mode == 'A. Single Product Calculation':
     )
     st.markdown("##### **Configuration Settings**")
     
+    # Flag to determine if WDP is being calculated or manually entered (for UI control)
+    is_wdp_calculated = (platform_selector == 'Meesho' and single_calc_mode == 'Target Discount')
+    
     if platform_selector != 'Meesho':
         col_royalty, col_extra_settings = st.columns(2) 
         royalty_base = 'CPA' if platform_selector == 'Myntra' else 'Sale Price'
@@ -671,24 +714,30 @@ if calculation_mode == 'A. Single Product Calculation':
     )
     new_discount = 0.0
     wrong_defective_price = None
+    
+    # Store the calculated WDP here for use in the main calculation block
+    calculated_wdp_for_target = None 
 
     if platform_selector == 'Meesho':
-        # Meesho: Input Wrong/Defective Price
-        if single_calc_mode == 'Target Discount':
-            col_price_in.info("Target Discount mode is not applicable for Meesho.")
-            single_calc_mode = 'Profit Calculation' # Force back to Profit Calc
+        # Meesho: Input/Display Wrong/Defective Price
+        if is_wdp_calculated:
+            # Mode: Target Discount -> WDP is calculated
+            col_price_in.info(f"WDP will be calculated to achieve Target Profit of ₹ {product_margin_target_rs:,.2f}")
+            # WDP will be calculated in the main block later
+            new_discount = 0.0 
         
-        wrong_defective_price = col_price_in.number_input(
-            "Wrong/Defective Price (₹)",
-            min_value=0.0,
-            max_value=new_mrp,
-            value=min(new_mrp, 2000.0), # Default less than MRP
-            step=10.0,
-            key="meesho_wdp_manual",
-            help="This is the value Meesho uses for charging its fees (Payout Value). This is treated as the Sale Price.",
-            label_visibility="visible"
-        )
-        new_discount = 0.0 # Will be calculated as MRP - WDP
+        else: # Profit Calculation Mode -> WDP is manual input
+            wrong_defective_price = col_price_in.number_input(
+                "Wrong/Defective Price (₹)",
+                min_value=0.0,
+                max_value=new_mrp,
+                value=min(new_mrp, 2000.0), # Default less than MRP
+                step=10.0,
+                key="meesho_wdp_manual",
+                help="This is the value Meesho uses for charging its fees (Payout Value). This is treated as the Sale Price.",
+                label_visibility="visible"
+            )
+            new_discount = 0.0 # Will be calculated as MRP - WDP
     
     else: # Other Platforms: Input Discount
         meesho_charge_percent = 0.0 # Reset Meesho values
@@ -726,7 +775,7 @@ if calculation_mode == 'A. Single Product Calculation':
         try:
             # --- CALCULATION BLOCK (Single) ---
             
-            # Determine initial discount based on mode
+            # Determine initial discount/WDP based on mode
             if single_calc_mode == 'Target Discount' and platform_selector != 'Meesho':
                 target_profit = product_margin_target_rs
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
@@ -736,13 +785,28 @@ if calculation_mode == 'A. Single Product Calculation':
                     st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
                     st.stop()
                 new_discount = calculated_discount
-            elif single_calc_mode == 'Target Discount' and platform_selector == 'Meesho':
-                # Meesho Target Discount will calculate the necessary WDP to hit target, 
-                # but since we can't change WDP here, we just run the profit calculation on current WDP 
-                # and display the profit delta. WDP is fixed here.
-                pass 
                 
-            # Perform calculation (using the final determined discount/WDP)
+            elif single_calc_mode == 'Target Discount' and platform_selector == 'Meesho':
+                # --- MEESHO TARGET WDP CALCULATION ---
+                target_profit = product_margin_target_rs
+                
+                calculated_discount, calculated_profit, calculated_discount_percent = find_discount_for_target_profit(
+                    new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, 
+                    platform_selector, weight_in_kg, shipping_zone, jiomart_category, 
+                    meesho_charge_rate, wrong_defective_price
+                )
+
+                if calculated_discount is None:
+                    st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at MRP (No Discount) is ₹ {calculated_profit:,.2f}.")
+                    st.stop()
+                    
+                # Store the calculated values for final use
+                new_discount = calculated_discount
+                wrong_defective_price = new_mrp - calculated_discount
+                calculated_wdp_for_target = wrong_defective_price # Store for display
+
+                
+            # Perform final calculation (using the final determined discount/WDP)
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
              marketing_fee_base, current_marketing_fee_rate, final_commission,
              commission_rate, settled_amount, taxable_amount_value,
@@ -809,8 +873,9 @@ if calculation_mode == 'A. Single Product Calculation':
                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
                 else: # MEESHO Display (WDP = Sale Price = CPA)
-                    # We recalculate discount and sale_price using WDP for display purposes
-                    calculated_discount = new_mrp - wrong_defective_price
+                    # Use the calculated WDP or the manually entered one for display
+                    display_wdp = calculated_wdp_for_target if calculated_wdp_for_target is not None else wrong_defective_price
+                    calculated_discount = new_mrp - display_wdp
                     discount_percent = (calculated_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
                     
                     col2_l.metric(
@@ -821,13 +886,24 @@ if calculation_mode == 'A. Single Product Calculation':
                     )
                     col3_l.metric(label="Sale Price (WDP)", value=f"₹ {sale_price:,.2f}")
                     st.markdown("---")
-                    col4_l, col5_l = st.columns(2)
-                    col4_l.metric(
-                        label="Fixed/Shipping Charges",
-                        value=f"₹ 0.00",
-                        delta_color="off"
-                    )
-                    col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                    
+                    # Display the final WDP if it was calculated
+                    if is_wdp_calculated:
+                         col4_l, col5_l = st.columns(2)
+                         col4_l.metric(
+                            label="Target WDP (Required for Profit)",
+                            value=f"₹ {display_wdp:,.2f}",
+                            delta_color="off"
+                         )
+                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                    else:
+                         col4_l, col5_l = st.columns(2)
+                         col4_l.metric(
+                            label="Fixed/Shipping Charges",
+                            value=f"₹ 0.00",
+                            delta_color="off"
+                         )
+                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
 
             # =========== RIGHT COLUMN: Deductions and Final Payout ===========
