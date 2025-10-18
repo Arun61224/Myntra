@@ -543,8 +543,8 @@ def get_excel_template():
         'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None, None],
         'Wrong_Defective_Price': [None, None, None, None, 1100.0], # Meesho specific
         'Meesho_Charge_Rate': [None, None, None, None, 0.03], # Meesho specific (e.g., 0.03 for 3% charge)
-        'Myntra_Brand': ['Disney By Miss and Chief', None, None, None, None], # NEW Myntra specific
-        'Myntra_Category': ['Wool/Knitwear', None, None, None, None] # NEW Myntra specific
+        'Myntra_Brand': ['KUCHIPOO', None, None, None, None], # UPDATED: Default to a new brand for template
+        'Myntra_Category': ['Generic Apparel', None, None, None, None] # UPDATED: Default category
     }
     df = pd.DataFrame(data)
 
@@ -674,11 +674,11 @@ if calculation_mode == 'A. Single Product Calculation':
             
             myntra_brand_options = list(MYNTRA_COMMISSION_RATES.keys())
             
-            # Since 'Vardhman' is removed, default to the first brand in the new list
+            # Set default index for Myntra Brand selector (will default to the first brand now)
             myntra_brand = col_brand.selectbox(
                 "Select Brand:",
                 myntra_brand_options,
-                index=0, # Default to the first available brand (Disney By Miss and Chief)
+                index=0, 
                 key="myntra_brand_selector"
             )
 
@@ -691,10 +691,15 @@ if calculation_mode == 'A. Single Product Calculation':
                     key="myntra_category_selector"
                 )
             
-            # Display the resulting commission rate
+            # Display the resulting commission rate (MODIFIED LOGIC)
             if myntra_brand and myntra_category:
-                current_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
-                st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:,.2f}%**")
+                if myntra_brand == "KUCHIPOO":
+                    current_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
+                    st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:,.2f}%**")
+                else:
+                    # Show "Working Under process" for all other selected brands
+                    st.info("Working Under process.")
+            # END MODIFIED LOGIC
 
         elif platform_selector == 'Jiomart':
             # Jiomart: Category Selector
