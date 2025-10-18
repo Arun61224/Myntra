@@ -62,9 +62,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- NEW: Myntra Brand/Category/Commission Data Structure ---
-# NOTE: Please update these values based on your current Myntra Seller Agreement.
+# --- NEW: Myntra Brand/Category/Commission Data Structure (UPDATED) ---
+# NOTE: Please replace these placeholder rates with your actual Myntra Seller Agreement rates.
 MYNTRA_COMMISSION_RATES = {
+    # --- Existing Brands ---
     "Vardhman": {
         "Wool/Knitwear": 0.15,  # 15% commission
         "Thermal Wear": 0.12,   # 12% commission
@@ -76,7 +77,46 @@ MYNTRA_COMMISSION_RATES = {
         "Thermal Wear": 0.15,
         "Shawls/Stoles": 0.22,
         "Generic Apparel": 0.25
+    },
+    
+    # --- NEW BRANDS ADDED (Using 'Other_Brand' rates as default placeholders) ---
+    "Disney By Miss and Chief": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    },
+    "KUCHIPOO": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    },
+    "Marvel by Miss and Chief": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    },
+    "YK": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    },
+    "YK Disney": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    },
+    "YK Marvel": {
+        "Wool/Knitwear": 0.18, 
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
     }
+    # ------------------------------------------------------------------
 }
 
 # --- CALCULATION LOGIC FUNCTIONS (CLEANED) ---
@@ -100,17 +140,6 @@ def get_myntra_commission_by_category(brand, category):
         # Default fallback to a high generic rate for safety if category/brand is missing
         return 0.25 
     return rate
-
-
-# OLD (Removed/Replaced for Myntra): Myntra Specific Commission Rate (Slab-based)
-# def get_myntra_commission_rate(customer_paid_amount):
-#     if customer_paid_amount <= 200:
-#         return 0.33
-#     elif customer_paid_amount <= 300:
-#         return 0.22
-#     # ... other slabs
-#     else:
-#         return 0.29
 
 # Jiomart Specific Fixed Fee (Base Amount)
 def calculate_jiomart_fixed_fee_base(sale_price):
@@ -341,9 +370,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
 
 # --- Other Helper Functions (Find Discount, Bulk Processing, Template) ---
 
-# All other helper functions (find_discount_for_target_profit, bulk_process_data, get_excel_template)
-# are assumed to be present and only need minor modifications for the new Myntra columns in Bulk.
-
 def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None, myntra_brand=None, myntra_category=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
@@ -532,7 +558,7 @@ def get_excel_template():
         'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None, None],
         'Wrong_Defective_Price': [None, None, None, None, 1100.0], # Meesho specific
         'Meesho_Charge_Rate': [None, None, None, None, 0.03], # Meesho specific (e.g., 0.03 for 3% charge)
-        'Myntra_Brand': ['Vardhman', None, None, None, None], # NEW Myntra specific
+        'Myntra_Brand': ['Disney By Miss and Chief', None, None, None, None], # NEW Myntra specific
         'Myntra_Category': ['Wool/Knitwear', None, None, None, None] # NEW Myntra specific
     }
     df = pd.DataFrame(data)
@@ -662,10 +688,14 @@ if calculation_mode == 'A. Single Product Calculation':
             col_brand, col_cat = st.columns(2)
             
             myntra_brand_options = list(MYNTRA_COMMISSION_RATES.keys())
+            
+            # Set default index for Myntra Brand selector
+            default_index = myntra_brand_options.index("Vardhman") if "Vardhman" in myntra_brand_options else 0
+
             myntra_brand = col_brand.selectbox(
                 "Select Brand:",
                 myntra_brand_options,
-                index=myntra_brand_options.index("Vardhman"),
+                index=default_index,
                 key="myntra_brand_selector"
             )
 
@@ -681,7 +711,7 @@ if calculation_mode == 'A. Single Product Calculation':
             # Display the resulting commission rate
             if myntra_brand and myntra_category:
                 current_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
-                st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:.2f}%**")
+                st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:,.2f}%**")
 
         elif platform_selector == 'Jiomart':
             # Jiomart: Category Selector
