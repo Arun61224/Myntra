@@ -1,1 +1,3 @@
-
+# Run this command in your new directory
+pip install streamlit-component-template
+create-component streamlit-target-cursor
