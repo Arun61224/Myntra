@@ -1,1 +1,91 @@
+/* ---------------------------------------------------- */
+/* Global Reset and Hidden Default Cursor */
+/* The React component handles hiding/showing the cursor, 
+   but this style ensures the component itself is fixed and centered. */
+/* ---------------------------------------------------- */
+body {
+    /* Ensure no visual scroll jitter */
+    scroll-behavior: smooth;
+}
+
+/* Ensure the cursor wrapper is fixed on the screen */
+.target-cursor-wrapper {
+    pointer-events: none; /* Allows clicks to pass through */
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    /* This transforms are managed by GSAP, but setting initial state is good */
+    transform: translate(-50%, -50%); 
+}
+
+/* ---------------------------------------------------- */
+/* The main dot element - for hover/click animation */
+/* ---------------------------------------------------- */
+.target-cursor-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #f73859; /* Bright color for visibility */
+    transform: translate(-50%, -50%);
+}
+
+/* ---------------------------------------------------- */
+/* The four corner elements - the 'frame' that expands on target hover */
+/* ---------------------------------------------------- */
+.target-cursor-corner {
+    position: absolute;
+    width: 12px; /* Should match cornerSize in JS constants */
+    height: 12px;
+    background-color: transparent;
+    border: 3px solid #66b3ff; /* Border should match borderWidth in JS constants */
+    /* Ensure the borders align with the edges of the box */
+    box-sizing: border-box; 
+}
+
+/* Define which borders are visible for each corner */
+.corner-tl {
+    border-right: none;
+    border-bottom: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(-18px, -18px); /* Initial position near the dot */
+}
+
+.corner-tr {
+    border-left: none;
+    border-bottom: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(6px, -18px); 
+}
+
+.corner-br {
+    border-left: none;
+    border-top: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(6px, 6px); 
+}
+
+.corner-bl {
+    border-right: none;
+    border-top: none;
+    top: 50%;
+    left: 50%;
+    transform: translate(-18px, 6px);
+}
+
+/* Example element class to test the cursor expansion effect on */
+.cursor-target {
+    cursor: pointer;
+}
+
+/* This is the class Streamlit uses for interactive elements like buttons */
+.stButton, .stRadio, .stSelectbox {
+    cursor: pointer;
+}
 
