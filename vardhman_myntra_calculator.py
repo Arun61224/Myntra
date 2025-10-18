@@ -62,7 +62,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- NEW: Myntra Brand/Category/Commission Data Structure (CLEANED) ---
+# --- Myntra Brand/Category/Commission Data Structure ---
 MYNTRA_COMMISSION_RATES = {
     # --- ONLY NEW BRANDS KEPT ---
     "Disney By Miss and Chief": {
@@ -104,13 +104,8 @@ MYNTRA_COMMISSION_RATES = {
     # ----------------------------
 }
 
-# --- JIOMART BRAND BENEFIT DATA (BASED ON SCREENSHOT) ---
-# Assuming this is a fixed Brand Fee Benefit structure for all products for now
-JIOMART_BRAND_FEE_BENEFIT = {
-    'Local': -1.54,
-    'Regional': -11.54,
-    'National': -31.54
-}
+# --- REMOVED JIOMART_BRAND_FEE_BENEFIT dictionary (Now input driven) ---
+
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -215,13 +210,14 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- CORE CALCULATION LOGIC (MODIFIED FOR JIOMART FEE STRUCTURE) ---
+# --- CORE CALCULATION LOGIC (MODIFIED for input Brand Benefit) ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
                              weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
                              meesho_charge_rate=0.0, wrong_defective_price=None,
-                             myntra_brand=None, myntra_category=None, jiomart_benefit_rate=0.0): # jiomart_benefit_rate is now ignored/defaulted
+                             myntra_brand=None, myntra_category=None, 
+                             jiomart_benefit_local_rate=0.0, jiomart_benefit_regional_rate=0.0, jiomart_benefit_national_rate=0.0): # NEW PARAMETERS
     """Performs all sequential calculations for profit analysis based on platform.
-        Returns 17 values (including jiomart_benefit_amount, now the 'Brand Fee Benefit').
+        Returns 20 values.
     """
     
     gt_charge = 0.0
@@ -235,15 +231,14 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     jiomart_fixed_fee_base = 0.0
     jiomart_shipping_fee_base = 0.0
     jiomart_total_fee_base = 0.0
-    jiomart_benefit_amount = 0.0 # NEW: Brand Fee Benefit (negative value)
+    jiomart_benefit_amount = 0.0 # Brand Fee Benefit (will be calculated as negative value/deduction)
     jiomart_final_applicable_fee_base = 0.0
     
-    total_fixed_charge = 0.0 # Used for all other fixed charges
+    total_fixed_charge = 0.0
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
 
     # --- PLATFORM SPECIFIC LOGIC ---
     if platform == 'Meesho':
-        # ... [Meesho logic remains the same] ...
         if wrong_defective_price is None or wrong_defective_price <= 0:
             customer_paid_amount = mrp
         else:
@@ -262,16 +257,16 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         marketing_fee_rate = 0.0
         total_fixed_charge = 0.0
 
-    else: # Myntra, FirstCry, Ajio, Jiomart (use standard discount logic)
+    else:
         sale_price = mrp - discount
         
         if sale_price < 0:
-            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            # Added zeros for the 4 new Jiomart return values
+            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-        customer_paid_amount = sale_price # Default to Sale Price
+        customer_paid_amount = sale_price
 
         if platform == 'Myntra':
-            # ... [Myntra logic remains the same] ...
             gt_charge = calculate_myntra_gt_charges(sale_price)
             customer_paid_amount = sale_price - gt_charge
             
@@ -284,7 +279,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             total_fixed_charge = gt_charge
             
         elif platform == 'FirstCry':
-            # ... [FirstCry logic remains the same] ...
             commission_rate = 0.42
             final_commission = sale_price * commission_rate
             gt_charge = 0.0
@@ -293,7 +287,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             total_fixed_charge = 0.0
 
         elif platform == 'Ajio':
-            # ... [Ajio logic remains the same] ...
             commission_rate = 0.20
             commission_base = sale_price * commission_rate
             commission_tax = commission_base * 0.18
@@ -306,7 +299,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             total_fixed_charge = gt_charge
 
         elif platform == 'Jiomart':
-            # --- JIOMART NEW FEE STRUCTURE (BASED ON SCREENSHOT) ---
             
             # 1. Base Fees
             if jiomart_category:
@@ -324,30 +316,33 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             # 2. Total Fee (Base)
             jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
 
-            # 3. Brand Fee Benefit (This is a DEDUCTION from the total fees)
-            jiomart_benefit_amount = JIOMART_BRAND_FEE_BENEFIT.get(shipping_zone, 0.0)
+            # 3. Brand Fee Benefit (NEW LOGIC - based on input rate * Sale Price)
+            benefit_rate = 0.0
+            if shipping_zone == 'Local':
+                benefit_rate = jiomart_benefit_local_rate
+            elif shipping_zone == 'Regional':
+                benefit_rate = jiomart_benefit_regional_rate
+            elif shipping_zone == 'National':
+                benefit_rate = jiomart_benefit_national_rate
+            
+            # Benefit is a negative deduction amount (Brand Fee Benefit)
+            jiomart_benefit_amount = -(sale_price * benefit_rate)
             
             # 4. Final Applicable Fee (B)
-            # The calculation is "Total Fee + Benefit", where Benefit is a negative number
+            # The calculation is "Total Fee + Benefit", where Benefit is the calculated negative amount
             jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
             # 5. GST @ 18% (C) - Applied ONLY to the Final Applicable Fee (B)
             jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
 
             # 6. Final Deduction Components
-            final_commission = 0.0 # Commission now included in Final Deduction
-            total_fixed_charge = 0.0 # Fixed/Shipping now included in Final Deduction
+            final_commission = jiomart_comm_fee_base # Proxy for base commission display
+            total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base # Proxy for base fixed/shipping display
+            total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
+
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
             
-            # Total Deduction is the sum of (Final Applicable Fee (B) + GST (C))
-            total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
-
-            # Set a proxy for final_commission/total_fixed_charge to be used in the common logic
-            final_commission = jiomart_comm_fee_base # Keep for P&L tracking display (base commission)
-            total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base # Keep for P&L tracking display (base fixed/shipping)
-            
-            # Use the calculated total deduction for the common settlement logic
             customer_paid_amount = sale_price
             
     # --- Apply Royalty universally based on Sale Price (Selling Price) ---
@@ -357,21 +352,16 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC (Based on Customer Paid Amount) ---
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     tax_amount = customer_paid_amount - taxable_amount_value
-    tds = taxable_amount_value * 0.001 # 0.1% TDS on Taxable Value
-    tcs = tax_amount * 0.10 # 10% TCS on Tax Amount (on Tax component of CPA)
+    tds = taxable_amount_value * 0.001
+    tcs = tax_amount * 0.10
 
     # DEDUCTIONS
     if platform == 'Jiomart':
-        # Total Platform Deduction is already calculated as total_platform_deduction
         total_deductions = total_platform_deduction + royalty_fee + marketing_fee_base
-        
     else:
-        # Standard deduction logic for all other platforms
         total_deductions = final_commission + royalty_fee + marketing_fee_base
-        # Add platform-specific fixed charges (GT/SCM) 
         if platform in ['Myntra', 'Ajio']:
             total_deductions += gt_charge
-        # Note: Jiomart is handled by total_platform_deduction above.
 
         
     # FINAL SETTLEMENT
@@ -379,24 +369,23 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     net_profit = settled_amount - product_cost
 
     return (sale_price, total_fixed_charge, customer_paid_amount, royalty_fee,
-            marketing_fee_base, marketing_fee_rate, final_commission, # final_commission (proxy for base commission)
+            marketing_fee_base, marketing_fee_rate, final_commission, 
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, 
-            jiomart_fixed_fee_base, jiomart_shipping_fee_base, # Base values for Jiomart
+            jiomart_fixed_fee_base, jiomart_shipping_fee_base,
             jiomart_benefit_amount, # Brand Fee Benefit (negative value)
             jiomart_total_fee_base, # Total Base Fee (1+2+3)
             jiomart_final_applicable_fee_base, # Final Applicable Fee (B) base
-            jiomart_final_applicable_fee_base * GST_RATE_FEES # GST @ 18% (C)
+            jiomart_gst_on_fees # GST @ 18% (C)
             )
 
-# --- Other Helper Functions (find_discount_for_target_profit and bulk_process_data need updates for new return structure) ---
-# ... [Simplified find_discount_for_target_profit signature change] ...
-def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None, myntra_brand=None, myntra_category=None, jiomart_benefit_rate=0.0): # jiomart_benefit_rate ignored
+# --- Other Helper Functions (Updated for 20 returns) ---
+def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None, myntra_brand=None, myntra_category=None, jiomart_benefit_local_rate=0.0, jiomart_benefit_regional_rate=0.0, jiomart_benefit_national_rate=0.0):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
     # Helper function to get the 11th return value (net_profit)
     def get_profit(disc, wdp=None):
-        results = perform_calculations(mrp, disc, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wdp, myntra_brand, myntra_category)
+        results = perform_calculations(mrp, disc, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wdp, myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate)
         return results[10]
 
     if platform == 'Meesho':
@@ -448,7 +437,7 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
     return mrp, final_profit, 100.0
 
 
-# --- Bulk Calculation Handler (MODIFIED for Jiomart Benefit) ---
+# --- Bulk Calculation Handler (Modified to use single rate for Jiomart Benefit in Bulk) ---
 def bulk_process_data(df):
     """Processes DataFrame rows for multi-platform profit calculation."""
     results = []
@@ -464,8 +453,8 @@ def bulk_process_data(df):
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
     df['Myntra_Brand'] = df['Myntra_Brand'].fillna(None)
     df['Myntra_Category'] = df['Myntra_Category'].fillna(None)
-    # Jiomart Benefit Rate column is now OBSOLETE/Ignored in calculation, but kept for compatibility
-    df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0)
+    # Using the single column for all three rates in bulk (since Excel can't have zone-specific inputs easily)
+    df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0) 
 
     for index, row in df.iterrows():
         try:
@@ -484,10 +473,11 @@ def bulk_process_data(df):
             wrong_defective_price = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) else None
             myntra_brand = str(row['Myntra_Brand']).strip() if pd.notna(row['Myntra_Brand']) else None
             myntra_category = str(row['Myntra_Category']).strip() if pd.notna(row['Myntra_Category']) else None
-            # jiomart_benefit_rate is passed but ignored by Jiomart logic, only used for non-Jiomart target calculation
-            jiomart_benefit_rate = float(row['Jiomart_Benefit_Rate'])
             
-            # Platform-specific variable cleaning (important for passing None correctly)
+            # Jiomart Benefit Handling for Bulk (Applies the single rate to all zones)
+            jiomart_benefit_rate_bulk = float(row['Jiomart_Benefit_Rate'])
+
+            # Platform-specific variable cleaning
             if platform == 'Meesho':
                 myntra_brand = None
                 myntra_category = None
@@ -502,6 +492,7 @@ def bulk_process_data(df):
                 wrong_defective_price = None
                 weight_in_kg = 0.0
                 shipping_zone = None
+                jiomart_benefit_rate_bulk = 0.0
                 
             elif platform == 'Jiomart':
                 myntra_brand = None
@@ -517,15 +508,18 @@ def bulk_process_data(df):
                 jiomart_category = None
                 weight_in_kg = 0.0
                 shipping_zone = None
+                jiomart_benefit_rate_bulk = 0.0
 
             # Perform calculation (Using the updated 20-value return structure)
+            # In Bulk, we pass the single rate to ALL three Jiomart rate parameters.
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
              marketing_fee_base, current_marketing_fee_rate, final_commission,
              commission_rate, settled_amount, taxable_amount_value,
              net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
              jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees) = perform_calculations(
                  mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
-                 weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category, jiomart_benefit_rate
+                 weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category,
+                 jiomart_benefit_rate_bulk, jiomart_benefit_rate_bulk, jiomart_benefit_rate_bulk # Pass same rate to all 3 zones in bulk
                 )
 
             # Determine fixed/shipping for display
@@ -533,16 +527,12 @@ def bulk_process_data(df):
             if platform == 'Ajio' or platform == 'Myntra':
                 fixed_shipping_charge = gt_charge
             elif platform == 'Jiomart':
-                # Use the sum of fixed and shipping base fees for the display column
                 fixed_shipping_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
-            # If Meesho, it remains 0.0
-
+            
             # Determine the Commission/Platform fee to display
             display_commission_fee = final_commission
             if platform == 'Jiomart':
-                # If Jiomart, we want to show the full platform cost (B+C)
                 display_commission_fee = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
-            # Note: The raw base commission (without GST) is available in final_commission for Jiomart if needed.
             
             # Store result
             result_row = {
@@ -554,8 +544,7 @@ def bulk_process_data(df):
                 'Sale_Price': sale_price,
                 'Product_Cost': product_cost,
                 'Royalty': royalty_fee,
-                # For Jiomart, Commission is the combined B+C. For others, it's the platform fee (incl. GST)
-                'Platform_Fee': display_commission_fee, 
+                'Platform_Fee_Incl_GST': display_commission_fee, 
                 'Fixed/Shipping_Charge': fixed_shipping_charge,
                 'Jiomart_Benefit': abs(jiomart_benefit_amount) if platform == 'Jiomart' else 0.0,
                 'TDS': tds,
@@ -595,7 +584,7 @@ def get_excel_template():
         'Meesho_Charge_Rate': [None, None, None, None, 0.03],
         'Myntra_Brand': ['KUCHIPOO', None, None, None, None],
         'Myntra_Category': ['Generic Apparel', None, None, None, None],
-        'Jiomart_Benefit_Rate': [None, None, None, None, None] # Removed fixed value, but kept column
+        'Jiomart_Benefit_Rate': [None, None, 0.01, None, None] # Example 1% benefit rate
     }
     df = pd.DataFrame(data)
 
@@ -621,8 +610,7 @@ def get_excel_template():
     worksheet.data_validation('J2:J100', {'validate': 'list', 'source': categories})
     worksheet.data_validation('L2:L100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_categories})
-    # NOTE: Jiomart_Benefit_Rate column is now deprecated/ignored in Jiomart calculation.
-    # We remove the validation for the benefit rate as the value is fixed by Shipping Zone. 
+    worksheet.data_validation('N2:N100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.1}) # Max 10% rate
 
     writer.close()
     processed_data = output.getvalue()
@@ -691,6 +679,11 @@ if calculation_mode == 'A. Single Product Calculation':
     is_wdp_calculated = (platform_selector == 'Meesho' and single_calc_mode == 'Target Discount')
     
     # --- Platform Specific Configuration ---
+    # Initializing Jiomart Benefit Rates for Single Calculation Mode
+    jiomart_benefit_local_rate = 0.0
+    jiomart_benefit_regional_rate = 0.0
+    jiomart_benefit_national_rate = 0.0
+
     with col_extra_settings:
         marketing_fee_rate = 0.0
         jiomart_category = None
@@ -717,7 +710,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:,.2f}%**")
 
         elif platform_selector == 'Jiomart':
-            # JIOMART: Only Category Selection is required for commission rate
+            # JIOMART: Category Selection
             st.markdown("##### **Jiomart Category**")
             
             jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
@@ -732,8 +725,6 @@ if calculation_mode == 'A. Single Product Calculation':
             )
             jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
             
-            # Temporary Jiomart Benefit Rate is now OBSOLETE. Set to 0.0
-            jiomart_benefit_rate = 0.0 
 
         elif platform_selector == 'Meesho':
             meesho_charge_percent = st.number_input(
@@ -747,7 +738,7 @@ if calculation_mode == 'A. Single Product Calculation':
             st.markdown("Marketing Fee Rate: **0%**")
             marketing_fee_rate = 0.0
 
-    # --- Jiomart Specific Inputs (Weight & Zone) ---
+    # --- Jiomart Specific Inputs (Shipping & Brand Benefit Rate) ---
     weight_in_kg = 0.0
     shipping_zone = None
     if platform_selector == 'Jiomart':
@@ -764,6 +755,25 @@ if calculation_mode == 'A. Single Product Calculation':
                 "Shipping Zone:", ('Local', 'Regional', 'National'), index=0, key="single_zone",
                 help="Select the shipping zone for the product."
             )
+        
+        st.markdown("##### **Brand Fee Benefit Rate (as % of Sale Price)**")
+        col_L, col_R, col_N = st.columns(3)
+        
+        jiomart_benefit_local_rate = col_L.number_input(
+            "Local Zone (%)", min_value=0.0, max_value=10.0, value=0.5, step=0.1, format="%.2f", 
+            help="Brand Fee Benefit (Deduction from Fees) for Local Shipments.", key="benefit_local"
+        ) / 100.0
+        
+        jiomart_benefit_regional_rate = col_R.number_input(
+            "Regional Zone (%)", min_value=0.0, max_value=10.0, value=1.0, step=0.1, format="%.2f", 
+            help="Brand Fee Benefit (Deduction from Fees) for Regional Shipments.", key="benefit_regional"
+        ) / 100.0
+        
+        jiomart_benefit_national_rate = col_N.number_input(
+            "National Zone (%)", min_value=0.0, max_value=10.0, value=1.5, step=0.1, format="%.2f", 
+            help="Brand Fee Benefit (Deduction from Fees) for National Shipments.", key="benefit_national"
+        ) / 100.0
+
     
     # --- Common Inputs ---
     col_cost, col_target = st.columns(2)
@@ -791,6 +801,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 "Wrong/Defective Price (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
                 key="meesho_wdp_manual", help="This is the value Meesho uses for charging its fees (Payout Value). This is treated as the Sale Price."
             )
+            new_discount = 0.0 # To ensure find_discount logic works for manual WDP
     
     else:
         if single_calc_mode == 'Profit Calculation':
@@ -817,7 +828,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
                     new_mrp, product_margin_target_rs, apply_royalty, marketing_fee_rate, product_cost, platform_selector,
                     weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
-                    myntra_brand, myntra_category, 0.0 # jiomart_benefit_rate is now dummy 0.0
+                    myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate # Pass all 3 rates
                 )
                 
                 if calculated_discount is None:
@@ -829,7 +840,7 @@ if calculation_mode == 'A. Single Product Calculation':
                     wrong_defective_price = new_mrp - calculated_discount
                     calculated_wdp_for_target = wrong_defective_price 
 
-            # Perform final calculation (Using the new 20-value return structure)
+            # Perform final calculation (Passing all 3 Jiomart benefit rates)
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
              marketing_fee_base, current_marketing_fee_rate, final_commission,
              commission_rate, settled_amount, taxable_amount_value,
@@ -837,7 +848,7 @@ if calculation_mode == 'A. Single Product Calculation':
              jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees) = perform_calculations(
                  new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector,
                  weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
-                 myntra_brand, myntra_category, 0.0 # jiomart_benefit_rate is now dummy 0.0
+                 myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate # Pass all 3 rates
                 )
 
 
@@ -874,7 +885,8 @@ if calculation_mode == 'A. Single Product Calculation':
                         st.markdown("###### **Jiomart Fee Breakup (Base)**")
                         col4_l, col5_l, col6_l, col7_l = st.columns(4)
                         
-                        col4_l.metric(label="1. Comm Fee Base", value=f"₹ {jiomart_total_fee_base - jiomart_fixed_fee_base - jiomart_shipping_fee_base:,.2f}") # Calculated back from total base fee
+                        comm_base_display = jiomart_total_fee_base - jiomart_fixed_fee_base - jiomart_shipping_fee_base
+                        col4_l.metric(label="1. Comm Fee Base", value=f"₹ {comm_base_display:,.2f}")
                         col5_l.metric(label="2. Fixed Fee Base", value=f"₹ {jiomart_fixed_fee_base:,.2f}")
                         col6_l.metric(label="3. Shipping Fee Base", value=f"₹ {jiomart_shipping_fee_base:,.2f}")
                         col7_l.metric(label="Total Fee (1+2+3)", value=f"₹ {jiomart_total_fee_base:,.2f}")
@@ -884,8 +896,8 @@ if calculation_mode == 'A. Single Product Calculation':
                         
                         col8_l.metric(
                             label="Benefit (Brand Fee Benefit)",
-                            value=f"₹ {jiomart_benefit_amount:,.2f}",
-                            delta="Deduction from Fees", delta_color="normal" if jiomart_benefit_amount < 0 else "off"
+                            value=f"₹ {abs(jiomart_benefit_amount):,.2f}",
+                            delta="Deduction from Fees", delta_color="normal"
                         )
                         
                         col9_l.metric(label="Final Applicable Fee (B)", value=f"₹ {jiomart_final_applicable_fee_base:,.2f}")
@@ -938,7 +950,7 @@ if calculation_mode == 'A. Single Product Calculation':
                     platform_fee_value = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
                 else:
                     platform_fee_label = f"Platform Fee / Commission (Incl. GST)"
-                    platform_fee_value = final_commission + gt_charge # For Myntra/Ajio, this is Comm+Fixed
+                    platform_fee_value = final_commission + gt_charge
                     if platform_selector == 'FirstCry':
                         platform_fee_label = "**Flat Deduction (42%)**"
                         platform_fee_value = final_commission
@@ -998,7 +1010,7 @@ if calculation_mode == 'A. Single Product Calculation':
 elif calculation_mode == 'B. Bulk Processing (Excel)':
     # ... [Bulk Processing Logic Remains] ...
     st.markdown("##### **Excel Bulk Processing**")
-    st.info("ℹ️ Please use the template provided below before uploading your file. **Note: Jiomart fees now use a fixed Brand Fee Benefit based on Shipping Zone.**")
+    st.info("ℹ️ Please use the template provided below before uploading your file. **Note: For Jiomart, the 'Jiomart\_Benefit\_Rate' column is the single percentage rate applied across all shipping zones.**")
 
     # Template Download Button
     excel_data = get_excel_template()
@@ -1046,7 +1058,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             st.markdown("### ✅ Calculation Results")
 
             # Rename 'Platform_Fee' column for clarity in bulk view
-            output_df = output_df.rename(columns={'Platform_Fee': 'Platform_Fee_Incl_GST'})
+            output_df = output_df.rename(columns={'Platform_Fee_Incl_GST': 'Platform_Fee_Incl_GST'})
 
             # Display results
             st.dataframe(output_df.style.format({
