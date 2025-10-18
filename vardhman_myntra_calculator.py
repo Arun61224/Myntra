@@ -62,6 +62,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- NEW: Myntra Brand/Category/Commission Data Structure ---
+# NOTE: Please update these values based on your current Myntra Seller Agreement.
+MYNTRA_COMMISSION_RATES = {
+    "Vardhman": {
+        "Wool/Knitwear": 0.15,  # 15% commission
+        "Thermal Wear": 0.12,   # 12% commission
+        "Shawls/Stoles": 0.18,  # 18% commission
+        "Generic Apparel": 0.20 # 20% commission
+    },
+    "Other_Brand": {
+        "Wool/Knitwear": 0.18,  # Higher commission for other brands
+        "Thermal Wear": 0.15,
+        "Shawls/Stoles": 0.22,
+        "Generic Apparel": 0.25
+    }
+}
+
 # --- CALCULATION LOGIC FUNCTIONS (CLEANED) ---
 
 # Myntra Specific GT Charges
@@ -73,20 +90,27 @@ def calculate_myntra_gt_charges(sale_price):
     else:
         return 171.00
 
-# Myntra Specific Commission Rate (Slab-based)
-def get_myntra_commission_rate(customer_paid_amount):
-    if customer_paid_amount <= 200:
-        return 0.33
-    elif customer_paid_amount <= 300:
-        return 0.22
-    elif customer_paid_amount <= 400:
-        return 0.19
-    elif customer_paid_amount <= 500:
-        return 0.22
-    elif customer_paid_amount <= 800:
-        return 0.24
-    else:
-        return 0.29
+# NEW FUNCTION: Myntra Specific Commission Rate (Based on Brand/Category)
+def get_myntra_commission_by_category(brand, category):
+    """Retrieves Myntra commission rate based on selected brand and category."""
+    brand_rates = MYNTRA_COMMISSION_RATES.get(brand, {})
+    # Fallback to a default rate if the specific category isn't found
+    rate = brand_rates.get(category)
+    if rate is None:
+        # Default fallback to a high generic rate for safety if category/brand is missing
+        return 0.25 
+    return rate
+
+
+# OLD (Removed/Replaced for Myntra): Myntra Specific Commission Rate (Slab-based)
+# def get_myntra_commission_rate(customer_paid_amount):
+#     if customer_paid_amount <= 200:
+#         return 0.33
+#     elif customer_paid_amount <= 300:
+#         return 0.22
+#     # ... other slabs
+#     else:
+#         return 0.29
 
 # Jiomart Specific Fixed Fee (Base Amount)
 def calculate_jiomart_fixed_fee_base(sale_price):
@@ -173,10 +197,11 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- MODIFIED: Added meesho_charge_rate and wrong_defective_price ---
+# --- MODIFIED: Added myntra_brand and myntra_category to inputs ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform, 
                          weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
-                         meesho_charge_rate=0.0, wrong_defective_price=None):
+                         meesho_charge_rate=0.0, wrong_defective_price=None,
+                         myntra_brand=None, myntra_category=None):
     """Performs all sequential calculations for profit analysis based on platform.
         Returns 16 values.
     """
@@ -210,7 +235,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         final_commission = commission_base + commission_tax
 
         # 3. No other charges
-        # royalty_fee calculated below, globally on sale_price
         marketing_fee_base = 0.0
         gt_charge = 0.0
         marketing_fee_rate = 0.0
@@ -228,9 +252,16 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         if platform == 'Myntra':
             gt_charge = calculate_myntra_gt_charges(sale_price)
             customer_paid_amount = sale_price - gt_charge
-            commission_rate = get_myntra_commission_rate(customer_paid_amount)
+            
+            # --- MODIFIED: Use the new Brand/Category logic for commission ---
+            if myntra_brand and myntra_category:
+                commission_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
+            else:
+                # Default safety rate if inputs are missing (should be caught by UI validation)
+                commission_rate = 0.25 
+            # ------------------------------------------------------------------
+            
             commission_amount_base = customer_paid_amount * commission_rate
-            # royalty_fee calculated below, globally on sale_price (was customer_paid_amount)
             marketing_fee_base = customer_paid_amount * marketing_fee_rate
             commission_tax = commission_amount_base * 0.18
             final_commission = commission_amount_base + commission_tax
@@ -239,7 +270,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         elif platform == 'FirstCry':
             commission_rate = 0.42
             final_commission = sale_price * commission_rate
-            # royalty_fee calculated below, globally on sale_price
             gt_charge = 0.0
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
@@ -253,7 +283,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             scm_base = 95.0
             scm_tax = scm_base * 0.18
             gt_charge = scm_base + scm_tax # SCM is the fixed/shipping charge here
-            # royalty_fee calculated below, globally on sale_price
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
             total_fixed_charge = gt_charge
@@ -264,6 +293,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             jiomart_fixed_fee_total = jiomart_fixed_fee * (1 + GST_RATE_FEES)
 
             # 2. Shipping Fee (Base + 18% GST)
+            jiomart_shipping_fee = 0.0
             if shipping_zone and weight_in_kg > 0:
                 jiomart_shipping_fee = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone)
             jiomart_shipping_fee_total = jiomart_shipping_fee * (1 + GST_RATE_FEES)
@@ -277,7 +307,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_tax = commission_base * GST_RATE_FEES
             final_commission = commission_base + commission_tax
 
-            # royalty_fee calculated below, globally on sale_price
             marketing_fee_base = 0.0
             marketing_fee_rate = 0.0
             total_fixed_charge = jiomart_fixed_fee_total + jiomart_shipping_fee_total
@@ -310,62 +339,18 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total)
 
-# --- New Function to find WDP for Meesho Target Profit ---
-def find_wdp_for_target_profit(mrp, target_profit, meesho_charge_rate, product_cost):
-    """Finds the required Wrong/Defective Price (WDP) to achieve target_profit by iterating."""
-    
-    # Check max possible profit at highest WDP (MRP)
-    # Note: apply_royalty must be passed here for correct max_profit calculation
-    # Using 'Yes' for safety, though user input will be retrieved in the caller
-    max_results = perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
-                                      meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
-    max_profit = max_results[10]
+# --- Other Helper Functions (Find Discount, Bulk Processing, Template) ---
 
-    if max_profit < target_profit:
-        return None, max_profit
+# All other helper functions (find_discount_for_target_profit, bulk_process_data, get_excel_template)
+# are assumed to be present and only need minor modifications for the new Myntra columns in Bulk.
 
-    # Iterate backwards from MRP until target profit is hit
-    # Start step can be larger for faster checks, but using 1.0 for precise finding
-    wdp_step = 1.0
-    required_wdp = mrp
-
-    while required_wdp >= 0:
-        # Use rounding to avoid float precision issues during iteration check
-        current_wdp_check = round(required_wdp, 2)
-        
-        # Note: apply_royalty must be passed here for correct profit calculation
-        current_results = perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
-                                               meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
-        current_profit = current_results[10]
-
-        if current_profit < target_profit:
-            # The last successful WDP was (required_wdp + wdp_step)
-            final_wdp = required_wdp + wdp_step
-            # Ensure final WDP does not exceed MRP
-            return min(final_wdp, mrp), current_results[10] 
-
-        required_wdp -= wdp_step
-        
-    # If the required WDP is 0 or less, return 0
-    return 0.0, perform_calculations(mrp, 0.0, 'Yes', 0.0, product_cost, 'Meesho', 
-                                     meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
-
-
-# --- Find Discount for Target Profit (MODIFIED for Meesho) ---
-def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None):
+def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, meesho_charge_rate=0.0, wrong_defective_price=None, myntra_brand=None, myntra_category=None):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
     if platform == 'Meesho':
         # --- MEESHO TARGET WDP CALCULATION ---
-        # NOTE: We need to ensure that the apply_royalty argument is respected in the finding function.
-        # However, the find_wdp_for_target_profit function doesn't take apply_royalty directly, 
-        # so we will use a dedicated target WDP finder logic for Meesho below.
-        
-        # --- MEESHO TARGET WDP CALCULATION (Inlined logic using apply_royalty) ---
-        
-        # Check max possible profit at highest WDP (MRP)
         max_results = perform_calculations(mrp, 0.0, apply_royalty, 0.0, product_cost, 'Meesho', 
-                                          meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
+                                             meesho_charge_rate=meesho_charge_rate, wrong_defective_price=mrp)
         initial_max_profit = max_results[10]
 
         if initial_max_profit < target_profit:
@@ -377,35 +362,32 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
         while required_wdp >= 0:
             current_wdp_check = round(required_wdp, 2)
             current_results = perform_calculations(mrp, 0.0, apply_royalty, 0.0, product_cost, 'Meesho', 
-                                                   meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
+                                                     meesho_charge_rate=meesho_charge_rate, wrong_defective_price=current_wdp_check)
             current_profit = current_results[10]
 
             if current_profit < target_profit:
                 final_wdp = required_wdp + wdp_step
                 target_wdp = min(final_wdp, mrp)
                 
-                # Calculate equivalent discount based on the target WDP
                 discount_amount = mrp - target_wdp
                 discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
                 
-                # Recalculate profit using the found WDP to get the final profit value
                 results = perform_calculations(mrp, discount_amount, apply_royalty, 0.0, product_cost, 'Meesho', 
-                                               meesho_charge_rate=meesho_charge_rate, wrong_defective_price=target_wdp)
+                                                     meesho_charge_rate=meesho_charge_rate, wrong_defective_price=target_wdp)
                 final_profit = results[10]
 
                 return discount_amount, final_profit, discount_percent 
 
             required_wdp -= wdp_step
-        
-        # Final fallback for when WDP reaches zero
+            
         discount_amount = mrp - 0.0
         final_profit = perform_calculations(mrp, discount_amount, apply_royalty, 0.0, product_cost, 'Meesho', 
-                                            meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
+                                             meesho_charge_rate=meesho_charge_rate, wrong_defective_price=0.0)[10]
         return discount_amount, final_profit, 100.0
 
 
-    # Original logic for other platforms
-    results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+    # Original logic for other platforms (including Myntra with new params)
+    results = perform_calculations(mrp, 0.0, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category)
     initial_profit = results[10]
 
     if initial_profit < target_profit:
@@ -415,24 +397,27 @@ def find_discount_for_target_profit(mrp, target_profit, apply_royalty, marketing
     required_discount = 0.0
 
     while required_discount <= mrp:
-        current_results = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+        # Pass Myntra specific params to calculation inside the loop
+        current_results = perform_calculations(mrp, required_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category)
         current_profit = current_results[10]
 
         if current_profit < target_profit:
             final_discount = max(0.0, required_discount - discount_step)
-            final_results = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+            # Recalculate with final discount for precise profit
+            final_results = perform_calculations(mrp, final_discount, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category)
             final_profit = final_results[10]
             discount_percent = (final_discount / mrp) * 100
             return final_discount, final_profit, discount_percent
 
         required_discount += discount_step
 
-    final_results = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category)
+    # Fallback if profit is still > target_profit even at 100% discount (should not happen with product_cost > 0)
+    final_results = perform_calculations(mrp, mrp, apply_royalty, marketing_fee_rate, product_cost, platform, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category)
     final_profit = final_results[10]
     return mrp, final_profit, 100.0
 
 
-# --- Bulk Calculation Handler (CLEANED and MODIFIED) ---
+# --- Bulk Calculation Handler (CLEANED and MODIFIED for Myntra) ---
 def bulk_process_data(df):
     """Processes DataFrame rows for multi-platform profit calculation."""
     results = []
@@ -448,6 +433,10 @@ def bulk_process_data(df):
     # New Meesho specific columns
     df['Meesho_Charge_Rate'] = df['Meesho_Charge_Rate'].fillna(0.03) # Default 3% charge
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
+    
+    # NEW Myntra specific columns (Default to None/Blank for other platforms)
+    df['Myntra_Brand'] = df['Myntra_Brand'].fillna(None)
+    df['Myntra_Category'] = df['Myntra_Category'].fillna(None)
 
     for index, row in df.iterrows():
         try:
@@ -467,9 +456,16 @@ def bulk_process_data(df):
             meesho_charge_rate = float(row['Meesho_Charge_Rate'])
             wrong_defective_price = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) else None
             
+            # NEW Myntra Specific Overrides/Inputs
+            myntra_brand = str(row['Myntra_Brand']).strip() if pd.notna(row['Myntra_Brand']) else None
+            myntra_category = str(row['Myntra_Category']).strip() if pd.notna(row['Myntra_Category']) else None
+
             if platform == 'Meesho':
-                # Discount/Sale Price is derived from WDP in perform_calculations
                 pass 
+            elif platform != 'Myntra':
+                 # Clear Myntra-specific fields if not Myntra
+                 myntra_brand = None
+                 myntra_category = None
             else:
                 # Use regular discount if not Meesho
                 wrong_defective_price = None
@@ -480,8 +476,8 @@ def bulk_process_data(df):
              commission_rate, settled_amount, taxable_amount_value,
              net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(
                  mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform, 
-                 weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price
-             )
+                 weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price, myntra_brand, myntra_category
+               )
 
             fixed_shipping_charge = gt_charge
             if platform == 'Jiomart':
@@ -520,7 +516,7 @@ def bulk_process_data(df):
 
     return pd.DataFrame(results)
 
-# --- Template Generation (CLEANED and MODIFIED) ---
+# --- Template Generation (MODIFIED for Myntra) ---
 def get_excel_template():
     """Generates an Excel template for bulk processing."""
     data = {
@@ -528,14 +524,16 @@ def get_excel_template():
         'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0],
         'Discount': [100.0, 300.0, 500.0, 0.0, 0.0], # Discount is 0 for Meesho in Bulk Input
         'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0],
-        'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho'], # Added Meesho
+        'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho'], # Updated Platforms
         'Apply_Royalty': ['Yes', 'No', 'Yes', 'No', 'No'],
         'Marketing_Fee_Rate': [0.04, 0.0, 0.0, 0.0, 0.0],
         'Weight_in_KG': [0.5, 0.0, 1.2, 0.0, 0.0],
         'Shipping_Zone': ['Local', None, 'National', None, None],
         'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None, None],
         'Wrong_Defective_Price': [None, None, None, None, 1100.0], # Meesho specific
-        'Meesho_Charge_Rate': [None, None, None, None, 0.03] # Meesho specific (e.g., 0.03 for 3% charge)
+        'Meesho_Charge_Rate': [None, None, None, None, 0.03], # Meesho specific (e.g., 0.03 for 3% charge)
+        'Myntra_Brand': ['Vardhman', None, None, None, None], # NEW Myntra specific
+        'Myntra_Category': ['Wool/Knitwear', None, None, None, None] # NEW Myntra specific
     }
     df = pd.DataFrame(data)
 
@@ -548,12 +546,16 @@ def get_excel_template():
     worksheet = writer.sheets['Data']
 
     # Validation options
-    platforms = ','.join(['Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho']) # Updated Platforms
+    platforms = ','.join(['Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho']) 
     royalty = 'Yes,No'
     zones = ','.join(['Local', 'Regional', 'National'])
     categories = ','.join(JIOMART_COMMISSION_RATES.keys())
+    
+    # NEW Myntra Validation Lists
+    myntra_brands = ','.join(MYNTRA_COMMISSION_RATES.keys())
+    myntra_categories = ','.join(set(cat for rates in MYNTRA_COMMISSION_RATES.values() for cat in rates.keys()))
 
-    # Update Data Validation ranges due to new SKU column
+    # Update Data Validation ranges due to new columns
     # Platform (E column now)
     worksheet.data_validation('E2:E100', {'validate': 'list', 'source': platforms})
     # Apply_Royalty (F column now)
@@ -562,12 +564,16 @@ def get_excel_template():
     worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
     # Jiomart_Category (J column now)
     worksheet.data_validation('J2:J100', {'validate': 'list', 'source': categories})
+    # Myntra_Brand (L column now)
+    worksheet.data_validation('L2:L100', {'validate': 'list', 'source': myntra_brands})
+    # Myntra_Category (M column now)
+    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_categories})
 
     writer.close()
     processed_data = output.getvalue()
     return processed_data
 
-# --- STREAMLIT APP STRUCTURE (CLEANED and MODIFIED) ---
+# --- STREAMLIT APP STRUCTURE (CLEANED and MODIFIED for Myntra UI) ---
 
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
@@ -586,18 +592,16 @@ with col_calc_mode:
 # --- Sub-Mode Placement ---
 if calculation_mode == 'A. Single Product Calculation':
     with col_sub_mode_placeholder:
-        # We need a dummy label to align the Sub-Mode radio button with the main mode
         st.markdown("Select Sub-Mode:") 
         single_calc_mode = st.radio(
-            "", # Label is empty as we used markdown for alignment
+            "", 
             ('Profit Calculation', 'Target Discount'),
             index=0,
-            label_visibility="collapsed", # Hide the radio label
+            label_visibility="collapsed", 
             horizontal=True
         )
 else:
-    # If in Bulk Mode, fill the placeholder column with nothing
-    single_calc_mode = 'Profit Calculation' # Default value for the variable 
+    single_calc_mode = 'Profit Calculation' 
     with col_sub_mode_placeholder:
         st.write("") 
 
@@ -607,10 +611,9 @@ st.divider()
 if calculation_mode == 'A. Single Product Calculation':
     # --- Single Product Inputs ---
 
-    # UPDATED PLATFORM LIST
     platform_selector = st.radio(
         "Select Platform:",
-        ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho'), # ADDED MEESHO
+        ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho'),
         index=0,
         horizontal=True
     )
@@ -637,7 +640,9 @@ if calculation_mode == 'A. Single Product Calculation':
     with col_extra_settings:
         marketing_fee_rate = 0.0
         jiomart_category = None
-        meesho_charge_rate = 0.0 # Default value if Meesho is not selected
+        meesho_charge_rate = 0.0
+        myntra_brand = None
+        myntra_category = None
         
         if platform_selector == 'Myntra':
             # Myntra: Marketing Fee Selector
@@ -652,6 +657,32 @@ if calculation_mode == 'A. Single Product Calculation':
             )
             marketing_fee_rate = float(selected_marketing_fee_str.strip('%')) / 100.0
             
+            st.markdown("---")
+            # NEW: Myntra Brand and Category Selectors
+            col_brand, col_cat = st.columns(2)
+            
+            myntra_brand_options = list(MYNTRA_COMMISSION_RATES.keys())
+            myntra_brand = col_brand.selectbox(
+                "Select Brand:",
+                myntra_brand_options,
+                index=myntra_brand_options.index("Vardhman"),
+                key="myntra_brand_selector"
+            )
+
+            if myntra_brand:
+                myntra_category_options = list(MYNTRA_COMMISSION_RATES[myntra_brand].keys())
+                myntra_category = col_cat.selectbox(
+                    "Select Category:",
+                    myntra_category_options,
+                    index=0,
+                    key="myntra_category_selector"
+                )
+            
+            # Display the resulting commission rate
+            if myntra_brand and myntra_category:
+                current_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
+                st.info(f"Commission Rate for **{myntra_brand} - {myntra_category}**: **{current_rate*100:.2f}%**")
+
         elif platform_selector == 'Jiomart':
             # Jiomart: Category Selector
             jiomart_category_options = list(JIOMART_COMMISSION_RATES.keys())
@@ -749,15 +780,12 @@ if calculation_mode == 'A. Single Product Calculation':
     new_discount = 0.0
     wrong_defective_price = None
     
-    # Store the calculated WDP here for use in the main calculation block
     calculated_wdp_for_target = None 
 
     if platform_selector == 'Meesho':
         # Meesho: Input/Display Wrong/Defective Price
         if is_wdp_calculated:
-            # Mode: Target Discount -> WDP is calculated
             col_price_in.info(f"WDP will be calculated to achieve Target Profit of ₹ {product_margin_target_rs:,.2f}")
-            # WDP will be calculated in the main block later
             new_discount = 0.0 
         
         else: # Profit Calculation Mode -> WDP is manual input
@@ -792,51 +820,48 @@ if calculation_mode == 'A. Single Product Calculation':
     st.divider()
 
     if new_mrp > 0 and product_cost > 0:
-        # --- Input Validation for Jiomart ---
+        # --- Input Validation ---
         if platform_selector == 'Jiomart' and jiomart_category is None:
             st.warning("Please select a **Product Category** for Jiomart calculation.")
             st.stop()
-        # ------------------------------------
+        if platform_selector == 'Myntra' and (myntra_brand is None or myntra_category is None):
+            st.warning("Please select a **Brand and Category** for Myntra calculation.")
+            st.stop()
+        # ------------------------
 
         try:
             # --- CALCULATION BLOCK (Single) ---
             
             # Determine initial discount/WDP based on mode
-            if single_calc_mode == 'Target Discount' and platform_selector != 'Meesho':
+            if single_calc_mode == 'Target Discount':
                 target_profit = product_margin_target_rs
+                
+                # Note: The myntra_brand and myntra_category are now passed through to find_discount_for_target_profit
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
-                    new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category
+                    new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, platform_selector, 
+                    weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
+                    myntra_brand, myntra_category # New Myntra params
                 )
+                
                 if calculated_discount is None:
                     st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
                     st.stop()
-                new_discount = calculated_discount
-                
-            elif single_calc_mode == 'Target Discount' and platform_selector == 'Meesho':
-                # --- MEESHO TARGET WDP CALCULATION ---
-                target_profit = product_margin_target_rs
-                
-                calculated_discount, calculated_profit, calculated_discount_percent = find_discount_for_target_profit(
-                    new_mrp, target_profit, apply_royalty, marketing_fee_rate, product_cost, 
-                    platform_selector, weight_in_kg, shipping_zone, jiomart_category, 
-                    meesho_charge_rate, wrong_defective_price
-                )
-
-                if calculated_discount is None:
-                    st.error(f"Cannot achieve the Target Profit of ₹ {target_profit:,.2f}. The maximum possible Net Profit at MRP (No Discount) is ₹ {calculated_profit:,.2f}.")
-                    st.stop()
                     
-                # Store the calculated values for final use
                 new_discount = calculated_discount
-                wrong_defective_price = new_mrp - calculated_discount
-                calculated_wdp_for_target = wrong_defective_price # Store for display
+                if platform_selector == 'Meesho':
+                     # Recalculate WDP from the found discount
+                    wrong_defective_price = new_mrp - calculated_discount
+                    calculated_wdp_for_target = wrong_defective_price 
 
-                
             # Perform final calculation (using the final determined discount/WDP)
             (sale_price, gt_charge, customer_paid_amount, royalty_fee,
              marketing_fee_base, current_marketing_fee_rate, final_commission,
              commission_rate, settled_amount, taxable_amount_value,
-             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price)
+             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_total, jiomart_shipping_fee_total) = perform_calculations(
+                 new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector, 
+                 weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
+                 myntra_brand, myntra_category # New Myntra params
+               )
 
 
             target_profit = product_margin_target_rs
@@ -867,7 +892,8 @@ if calculation_mode == 'A. Single Product Calculation':
                     )
                     col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
                     st.markdown("---")
-                    # Display for Myntra/Ajio/FirstCry/Jiomart
+                    
+                    # Display Fixed/Shipping Charges
                     if platform_selector == 'Jiomart':
                         col4_l, col5_l, col6_l = st.columns(3)
                         col4_l.metric(
@@ -899,7 +925,6 @@ if calculation_mode == 'A. Single Product Calculation':
                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
                 else: # MEESHO Display (WDP = Sale Price = CPA)
-                    # Use the calculated WDP or the manually entered one for display
                     display_wdp = calculated_wdp_for_target if calculated_wdp_for_target is not None else wrong_defective_price
                     calculated_discount = new_mrp - display_wdp
                     discount_percent = (calculated_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
@@ -913,7 +938,6 @@ if calculation_mode == 'A. Single Product Calculation':
                     col3_l.metric(label="Sale Price (WDP)", value=f"₹ {sale_price:,.2f}")
                     st.markdown("---")
                     
-                    # Display the final WDP if it was calculated
                     if is_wdp_calculated:
                          col4_l, col5_l = st.columns(2)
                          col4_l.metric(
@@ -941,7 +965,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 # Commission
                 commission_display_label = ""
                 if platform_selector == 'Myntra':
-                    commission_display_label = f"Commission ({commission_rate*100:.0f}%+Tax)"
+                    commission_display_label = f"Commission ({commission_rate*100:,.2f}%+Tax)" # MODIFIED: Use the calculated rate
                 elif platform_selector == 'FirstCry':
                     commission_display_label = "**Flat Deduction (42%)**"
                 elif platform_selector == 'Ajio':
@@ -991,8 +1015,8 @@ if calculation_mode == 'A. Single Product Calculation':
                     delta_color=delta_color
                 )
 
-        except ValueError as e:
-            st.error(str(e))
+        except Exception as e:
+            st.error(f"An error occurred during calculation: {str(e)}")
     else:
         st.info("Please enter a valid MRP and Product Cost to start the calculation.")
 
@@ -1000,7 +1024,7 @@ if calculation_mode == 'A. Single Product Calculation':
 elif calculation_mode == 'B. Bulk Processing (Excel)':
     # --- Bulk Processing Logic ---
     st.markdown("##### **Excel Bulk Processing**")
-    st.info("ℹ️ Please use the template provided below before uploading your file. **For Meesho, fill 'Wrong\_Defective\_Price' and 'Meesho\_Charge\_Rate' columns.**")
+    st.info("ℹ️ Please use the template provided below before uploading your file. **For Myntra, ensure 'Myntra\_Brand' and 'Myntra\_Category' columns are filled.**")
 
     # Template Download Button
     excel_data = get_excel_template()
@@ -1018,18 +1042,18 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith('.csv'):
-                # Load CSV, attempting to ensure required columns are present to avoid bulk error
                 input_df = pd.read_csv(uploaded_file)
             else:
-                # Load Excel
                 input_df = pd.read_excel(uploaded_file)
             
             # Ensure all required columns for calculation are present, filling missing with defaults
-            required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform', 'Apply_Royalty', 'Marketing_Fee_Rate', 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Wrong_Defective_Price', 'Meesho_Charge_Rate']
+            # MODIFIED: Added Myntra_Brand and Myntra_Category to required_cols
+            required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform', 'Apply_Royalty', 'Marketing_Fee_Rate', 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Wrong_Defective_Price', 'Meesho_Charge_Rate', 'Myntra_Brand', 'Myntra_Category']
             for col in required_cols:
                 if col not in input_df.columns:
-                    if col in ['Wrong_Defective_Price', 'Meesho_Charge_Rate']:
-                        input_df[col] = np.nan # Use NaN for optional Meesho columns if missing
+                    # Allow optional columns to be missing
+                    if col in ['Wrong_Defective_Price', 'Meesho_Charge_Rate', 'Myntra_Brand', 'Myntra_Category']:
+                        input_df[col] = np.nan 
                     else:
                         st.error(f"Missing required column: **{col}**. Please use the downloaded template.")
                         st.stop()
