@@ -62,24 +62,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- NEW: Myntra Brand/Category/Commission Data Structure (UPDATED) ---
-# NOTE: Please replace these placeholder rates with your actual Myntra Seller Agreement rates.
+# --- NEW: Myntra Brand/Category/Commission Data Structure (CLEANED) ---
+# Only the new brands are kept. Please update placeholder rates if needed.
 MYNTRA_COMMISSION_RATES = {
-    # --- Existing Brands ---
-    "Vardhman": {
-        "Wool/Knitwear": 0.15,  # 15% commission
-        "Thermal Wear": 0.12,   # 12% commission
-        "Shawls/Stoles": 0.18,  # 18% commission
-        "Generic Apparel": 0.20 # 20% commission
-    },
-    "Other_Brand": {
-        "Wool/Knitwear": 0.18,  # Higher commission for other brands
-        "Thermal Wear": 0.15,
-        "Shawls/Stoles": 0.22,
-        "Generic Apparel": 0.25
-    },
-    
-    # --- NEW BRANDS ADDED (Using 'Other_Brand' rates as default placeholders) ---
+    # --- ONLY NEW BRANDS KEPT ---
     "Disney By Miss and Chief": {
         "Wool/Knitwear": 0.18, 
         "Thermal Wear": 0.15,
@@ -116,10 +102,10 @@ MYNTRA_COMMISSION_RATES = {
         "Shawls/Stoles": 0.22,
         "Generic Apparel": 0.25
     }
-    # ------------------------------------------------------------------
+    # ----------------------------
 }
 
-# --- CALCULATION LOGIC FUNCTIONS (CLEANED) ---
+# --- CALCULATION LOGIC FUNCTIONS (No change needed here, just definitions) ---
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -282,13 +268,12 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             gt_charge = calculate_myntra_gt_charges(sale_price)
             customer_paid_amount = sale_price - gt_charge
             
-            # --- MODIFIED: Use the new Brand/Category logic for commission ---
+            # --- Use the new Brand/Category logic for commission ---
             if myntra_brand and myntra_category:
                 commission_rate = get_myntra_commission_by_category(myntra_brand, myntra_category)
             else:
                 # Default safety rate if inputs are missing (should be caught by UI validation)
                 commission_rate = 0.25 
-            # ------------------------------------------------------------------
             
             commission_amount_base = customer_paid_amount * commission_rate
             marketing_fee_base = customer_paid_amount * marketing_fee_rate
@@ -689,13 +674,11 @@ if calculation_mode == 'A. Single Product Calculation':
             
             myntra_brand_options = list(MYNTRA_COMMISSION_RATES.keys())
             
-            # Set default index for Myntra Brand selector
-            default_index = myntra_brand_options.index("Vardhman") if "Vardhman" in myntra_brand_options else 0
-
+            # Since 'Vardhman' is removed, default to the first brand in the new list
             myntra_brand = col_brand.selectbox(
                 "Select Brand:",
                 myntra_brand_options,
-                index=default_index,
+                index=0, # Default to the first available brand (Disney By Miss and Chief)
                 key="myntra_brand_selector"
             )
 
