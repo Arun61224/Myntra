@@ -208,7 +208,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- CORE CALCULATION LOGIC (FIXED UnboundLocalError) ---
+# --- CORE CALCULATION LOGIC (REFINED AND FIXED) ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
                              weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
                              meesho_charge_rate=0.0, wrong_defective_price=None,
@@ -224,14 +224,15 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     final_commission = 0.0
     commission_rate = 0.0
     
-    # Jiomart Fee Breakdown Variables - INITIALIZE TO 0.0 TO FIX UnboundLocalError
+    # Jiomart Fee Breakdown Variables - Initialized for safe return
     jiomart_comm_fee_base = 0.0
     jiomart_fixed_fee_base = 0.0
     jiomart_shipping_fee_base = 0.0
     jiomart_total_fee_base = 0.0
     jiomart_benefit_amount = 0.0 
     jiomart_final_applicable_fee_base = 0.0
-    jiomart_gst_on_fees = 0.0 # <--- FIX: Initialize this variable
+    jiomart_gst_on_fees = 0.0
+    total_platform_deduction = 0.0 # Initialize total deduction for Jiomart case
     
     total_fixed_charge = 0.0
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
@@ -311,10 +312,10 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             if shipping_zone and weight_in_kg > 0:
                 jiomart_shipping_fee_base = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone)
 
-            # 2. Total Fee (Base)
+            # 2. Total Fee (1+2+3)
             jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
 
-            # 3. Brand Fee Benefit (NEW LOGIC - based on input rate * Sale Price)
+            # 3. Brand Fee Benefit (Deduction from Fees, hence negative)
             benefit_rate = 0.0
             if shipping_zone == 'Local':
                 benefit_rate = jiomart_benefit_local_rate
@@ -323,23 +324,21 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             elif shipping_zone == 'National':
                 benefit_rate = jiomart_benefit_national_rate
             
-            # Benefit is a negative deduction amount (Brand Fee Benefit)
+            # jiomart_benefit_amount is stored as a negative value (the deduction)
             jiomart_benefit_amount = -(sale_price * benefit_rate)
             
             # 4. Final Applicable Fee (B)
-            # The calculation is "Total Fee + Benefit", where Benefit is the calculated negative amount
             jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
             # 5. GST @ 18% (C) - Applied ONLY to the Final Applicable Fee (B)
-            jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES # <--- ASSIGNED HERE
+            jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
 
-            # 6. Final Deduction Components
-            final_commission = jiomart_comm_fee_base # Proxy for base commission display
-            total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base # Proxy for base fixed/shipping display
+            # 6. Total Platform Deduction
             total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
 
-            marketing_fee_base = 0.0
-            marketing_fee_rate = 0.0
+            # Proxies for common fields (Base values for P&L tracking)
+            final_commission = jiomart_comm_fee_base
+            total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
             
             customer_paid_amount = sale_price
             
@@ -374,7 +373,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             jiomart_benefit_amount, # Brand Fee Benefit (negative value)
             jiomart_total_fee_base, # Total Base Fee (1+2+3)
             jiomart_final_applicable_fee_base, # Final Applicable Fee (B) base
-            jiomart_gst_on_fees # GST @ 18% (C) <--- NOW SAFE TO RETURN
+            jiomart_gst_on_fees # GST @ 18% (C)
             )
 
 # --- Other Helper Functions (Updated for 20 returns) ---
@@ -826,7 +825,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
                     new_mrp, product_margin_target_rs, apply_royalty, marketing_fee_rate, product_cost, platform_selector,
                     weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
-                    myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate # Pass all 3 rates
+                    myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate
                 )
                 
                 if calculated_discount is None:
@@ -846,7 +845,7 @@ if calculation_mode == 'A. Single Product Calculation':
              jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees) = perform_calculations(
                  new_mrp, new_discount, apply_royalty, marketing_fee_rate, product_cost, platform_selector,
                  weight_in_kg, shipping_zone, jiomart_category, meesho_charge_rate, wrong_defective_price,
-                 myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate # Pass all 3 rates
+                 myntra_brand, myntra_category, jiomart_benefit_local_rate, jiomart_benefit_regional_rate, jiomart_benefit_national_rate
                 )
 
 
