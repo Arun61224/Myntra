@@ -319,6 +319,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             benefit_rate = jiomart_benefit_rate
             
             # jiomart_benefit_amount is stored as a negative value (the deduction)
+            # This calculation reflects the X% reduction on Sale Price, which adjusts the Total Fee.
             jiomart_benefit_amount = -(sale_price * benefit_rate)
             
             # 4. Final Applicable Fee (B)
@@ -476,6 +477,7 @@ def bulk_process_data(df):
                 discount = 0.0
                 weight_in_kg = 0.0
                 shipping_zone = None
+                jiomart_benefit_rate_bulk = 0.0
                 
             elif platform == 'Myntra':
                 jiomart_category = None
