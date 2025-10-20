@@ -753,7 +753,7 @@ if calculation_mode == 'A. Single Product Calculation':
         st.markdown("##### **Flat Brand Fee Benefit Rate (as % of Sale Price)**")
         
         jiomart_benefit_rate = st.number_input(
-            "Benefit Rate (%)", min_value=0.0, **max_value=50.0**, value=1.0, step=0.1, format="%.2f", 
+            "Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f", 
             help="Flat Brand Fee Benefit Rate applied to Sale Price across all zones.", key="flat_benefit_rate"
         ) / 100.0
         
