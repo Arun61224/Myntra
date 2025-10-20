@@ -104,8 +104,6 @@ MYNTRA_COMMISSION_RATES = {
     # ----------------------------
 }
 
-# --- REMOVED JIOMART_BRAND_FEE_BENEFIT dictionary (Now input driven) ---
-
 
 # Myntra Specific GT Charges
 def calculate_myntra_gt_charges(sale_price):
@@ -210,12 +208,12 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- CORE CALCULATION LOGIC (MODIFIED for input Brand Benefit) ---
+# --- CORE CALCULATION LOGIC (FIXED UnboundLocalError) ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
                              weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
                              meesho_charge_rate=0.0, wrong_defective_price=None,
                              myntra_brand=None, myntra_category=None, 
-                             jiomart_benefit_local_rate=0.0, jiomart_benefit_regional_rate=0.0, jiomart_benefit_national_rate=0.0): # NEW PARAMETERS
+                             jiomart_benefit_local_rate=0.0, jiomart_benefit_regional_rate=0.0, jiomart_benefit_national_rate=0.0):
     """Performs all sequential calculations for profit analysis based on platform.
         Returns 20 values.
     """
@@ -226,13 +224,14 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     final_commission = 0.0
     commission_rate = 0.0
     
-    # Jiomart Fee Breakdown Variables
+    # Jiomart Fee Breakdown Variables - INITIALIZE TO 0.0 TO FIX UnboundLocalError
     jiomart_comm_fee_base = 0.0
     jiomart_fixed_fee_base = 0.0
     jiomart_shipping_fee_base = 0.0
     jiomart_total_fee_base = 0.0
-    jiomart_benefit_amount = 0.0 # Brand Fee Benefit (will be calculated as negative value/deduction)
+    jiomart_benefit_amount = 0.0 
     jiomart_final_applicable_fee_base = 0.0
+    jiomart_gst_on_fees = 0.0 # <--- FIX: Initialize this variable
     
     total_fixed_charge = 0.0
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
@@ -261,7 +260,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
         sale_price = mrp - discount
         
         if sale_price < 0:
-            # Added zeros for the 4 new Jiomart return values
             return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
         customer_paid_amount = sale_price
@@ -333,7 +331,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
             # 5. GST @ 18% (C) - Applied ONLY to the Final Applicable Fee (B)
-            jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
+            jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES # <--- ASSIGNED HERE
 
             # 6. Final Deduction Components
             final_commission = jiomart_comm_fee_base # Proxy for base commission display
@@ -376,7 +374,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             jiomart_benefit_amount, # Brand Fee Benefit (negative value)
             jiomart_total_fee_base, # Total Base Fee (1+2+3)
             jiomart_final_applicable_fee_base, # Final Applicable Fee (B) base
-            jiomart_gst_on_fees # GST @ 18% (C)
+            jiomart_gst_on_fees # GST @ 18% (C) <--- NOW SAFE TO RETURN
             )
 
 # --- Other Helper Functions (Updated for 20 returns) ---
@@ -801,7 +799,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 "Wrong/Defective Price (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
                 key="meesho_wdp_manual", help="This is the value Meesho uses for charging its fees (Payout Value). This is treated as the Sale Price."
             )
-            new_discount = 0.0 # To ensure find_discount logic works for manual WDP
+            new_discount = 0.0
     
     else:
         if single_calc_mode == 'Profit Calculation':
