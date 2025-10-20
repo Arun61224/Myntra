@@ -208,7 +208,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- CORE CALCULATION LOGIC (REFINED AND FIXED) ---
+# --- CORE CALCULATION LOGIC (FIXED) ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
                              weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
                              meesho_charge_rate=0.0, wrong_defective_price=None,
@@ -232,7 +232,7 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     jiomart_benefit_amount = 0.0 
     jiomart_final_applicable_fee_base = 0.0
     jiomart_gst_on_fees = 0.0
-    total_platform_deduction = 0.0 # Initialize total deduction for Jiomart case
+    total_platform_deduction = 0.0
     
     total_fixed_charge = 0.0
     GST_RATE_FEES = 0.18 # 18% GST on platform fees
