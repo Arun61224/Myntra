@@ -208,8 +208,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     taxable_amount = customer_paid_amount / divisor
     return taxable_amount, tax_rate
 
-# --- CORE CALCULATION LOGIC (SIMPLIFIED JIOMART BRAND BENEFIT) ---
-# Consolidated Jiomart benefit rates into a single parameter
+# --- CORE CALCULATION LOGIC ---
 def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, product_cost, platform,
                              weight_in_kg=0.0, shipping_zone=None, jiomart_category=None,
                              meesho_charge_rate=0.0, wrong_defective_price=None,
@@ -317,7 +316,6 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
 
             # 3. Brand Fee Benefit (Deduction from Fees, hence negative)
-            # Use the single rate provided, regardless of zone.
             benefit_rate = jiomart_benefit_rate
             
             # jiomart_benefit_amount is stored as a negative value (the deduction)
@@ -602,13 +600,14 @@ def get_excel_template():
     worksheet.data_validation('J2:J100', {'validate': 'list', 'source': categories})
     worksheet.data_validation('L2:L100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_categories})
-    worksheet.data_validation('N2:N100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.1}) # Max 10% rate
+    # UPDATED: Max value for excel validation changed to 0.5 (50%)
+    worksheet.data_validation('N2:N100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
 
     writer.close()
     processed_data = output.getvalue()
     return processed_data
 
-# --- STREAMLIT APP STRUCTURE (CLEANED & REORGANIZED FOR JIOMART) ---
+# --- STREAMLIT APP STRUCTURE (FIXED JIOMART INPUT MAX) ---
 
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
@@ -752,7 +751,7 @@ if calculation_mode == 'A. Single Product Calculation':
         st.markdown("##### **Flat Brand Fee Benefit Rate (as % of Sale Price)**")
         
         jiomart_benefit_rate = st.number_input(
-            "Benefit Rate (%)", min_value=0.0, max_value=10.0, value=1.0, step=0.1, format="%.2f", 
+            "Benefit Rate (%)", min_value=0.0, **max_value=50.0**, value=1.0, step=0.1, format="%.2f", 
             help="Flat Brand Fee Benefit Rate applied to Sale Price across all zones.", key="flat_benefit_rate"
         ) / 100.0
         
