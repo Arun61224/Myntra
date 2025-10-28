@@ -686,6 +686,43 @@ def bulk_process_data(df):
 
     return pd.DataFrame(results)
 
+# --- (NEW) Helper functions for Commission Download ---
+def flatten_myntra_data():
+    """Converts the nested MYNTRA_COMMISSION_DATA dict to a flat DataFrame."""
+    records = []
+    for brand, categories in MYNTRA_COMMISSION_DATA.items():
+        for category, genders in categories.items():
+            for gender, slabs in genders.items():
+                for slab, rate in slabs.items():
+                    records.append({
+                        "Brand": brand,
+                        "Category": category,
+                        "Gender": gender,
+                        "Price_Slab": slab,
+                        "Commission_Rate": rate
+                    })
+    return pd.DataFrame(records)
+
+def get_commission_rates_excel():
+    """Generates an Excel file (in-memory) of the Myntra commission rates."""
+    df = flatten_myntra_data()
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Myntra_Commission_Rates')
+        
+        # Auto-format columns
+        workbook = writer.book
+        worksheet = writer.sheets['Myntra_Commission_Rates']
+        worksheet.autofit()
+        
+        # Add percentage formatting to the rate column
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        worksheet.set_column('E:E', 18, percent_format) # Column E is 'Commission_Rate'
+        
+    processed_data = output.getvalue()
+    return processed_data
+
+
 # --- (MODIFIED) Template Generation ---
 def get_excel_template():
     """Generates an Excel template for bulk processing."""
@@ -810,12 +847,20 @@ if calculation_mode == 'A. Single Product Calculation':
         myntra_new_brand = col_brand.selectbox("Select Brand:", brand_options, index=0, key="myntra_brand_v3")
         
         # 2. Category
-        category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-        myntra_new_category = col_cat.selectbox("Select Category:", category_options, index=0, key="myntra_cat_v3")
-        
+        try:
+            category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
+            myntra_new_category = col_cat.selectbox("Select Category:", category_options, index=0, key="myntra_cat_v3")
+        except KeyError:
+            st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
+            st.stop()
+            
         # 3. Gender
-        gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-        myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, index=0, key="myntra_gen_v3")
+        try:
+            gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
+            myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, index=0, key="myntra_gen_v3")
+        except KeyError:
+             st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
+             st.stop()
         
         # 4. Kuchipoo Royalty Option
         if myntra_new_brand == 'KUCHIPOO':
@@ -1061,15 +1106,33 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
     st.markdown("##### **Excel Bulk Processing**")
     st.info("ℹ️ Please use the template provided below. All new Myntra columns (`Myntra_New_Brand`, `Myntra_New_Category`, etc.) have been added.")
 
-    # Template Download Button
-    excel_data = get_excel_template()
-    st.download_button(
-        label="⬇️ Download Excel Template (v3)",
-        data=excel_data,
-        file_name='Vardhman_Ecom_Bulk_Template_v3.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        help="Download this template and fill in your product details."
-    )
+    # --- (NEW) Columns for Download Buttons ---
+    col_template, col_rates = st.columns(2)
+
+    with col_template:
+        # Template Download Button
+        excel_data = get_excel_template()
+        st.download_button(
+            label="⬇️ Download Excel Template (v3)",
+            data=excel_data,
+            file_name='Vardhman_Ecom_Bulk_Template_v3.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            help="Download this template and fill in your product details.",
+            use_container_width=True
+        )
+        
+    with col_rates:
+        # --- (NEW) Download Commission Rates Button ---
+        commission_data_excel = get_commission_rates_excel()
+        st.download_button(
+            label="📊 Download Myntra Commission Rates",
+            data=commission_data_excel,
+            file_name='Myntra_Commission_Rates_v3.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            help="Download the current Myntra commission rates stored in the calculator.",
+            use_container_width=True
+        )
+        
     st.divider()
 
     uploaded_file = st.file_uploader("📂 **Upload Excel File** (.xlsx or .csv)", type=['xlsx', 'csv'])
@@ -1167,3 +1230,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
