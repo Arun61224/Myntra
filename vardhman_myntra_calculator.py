@@ -1038,7 +1038,7 @@ if calculation_mode == 'A. Single Product Calculation':
                         col4_l, col5_l = st.columns(2)
                         fixed_charge_label = "Fixed/Shipping Charge"
                         if platform_selector == 'Myntra':
-                            fixed_charge_label = "Fixed Fee (Incl. GST)"
+                            fixed_charge_label = "GT Charge (Incl. GST)"
                         elif platform_selector == 'Ajio':
                             fixed_charge_label = "SCM Charges (Incl. GST)"
                         elif platform_selector == 'Snapdeal':
@@ -1230,4 +1230,5 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
 
