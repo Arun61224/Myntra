@@ -337,6 +337,26 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
             
             customer_paid_amount = sale_price
             
+        # --- NEW SNAPDEAL LOGIC ---
+        elif platform == 'Snapdeal':
+            commission_rate = 0.24
+            
+            # 1. Commission (24% on SP + 18% GST)
+            commission_base = round(sale_price * commission_rate)
+            commission_tax = round(commission_base * GST_RATE_FEES)
+            final_commission = commission_base + commission_tax
+            
+            # 2. RO Fee (8% on SP + 14% Tax)
+            ro_base = round(sale_price * 0.08)
+            ro_tax = round(ro_base * 0.14)
+            gt_charge = ro_base + ro_tax # Using gt_charge to store this fixed fee
+            
+            # 3. Other Fees
+            marketing_fee_base = 0.0
+            marketing_fee_rate = 0.0
+            total_fixed_charge = gt_charge
+            customer_paid_amount = sale_price
+            
     # --- Apply Royalty universally based on Sale Price (Selling Price) ---
     if apply_royalty == 'Yes':
         royalty_fee = sale_price * 0.10
@@ -345,14 +365,15 @@ def perform_calculations(mrp, discount, apply_royalty, marketing_fee_rate, produ
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     tax_amount = customer_paid_amount - taxable_amount_value
     tds = taxable_amount_value * 0.001
-    tcs = tax_amount * 0.10
+    tcs = tax_amount * 0.10 # NOTE: This was 0.10 (10%) in your script, not 0.01 (1%)
 
     # DEDUCTIONS
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction + royalty_fee + marketing_fee_base
     else:
         total_deductions = final_commission + royalty_fee + marketing_fee_base
-        if platform in ['Myntra', 'Ajio']:
+        # ADDED SNAPDEAL HERE
+        if platform in ['Myntra', 'Ajio', 'Snapdeal']:
             total_deductions += gt_charge
 
         
@@ -493,7 +514,7 @@ def bulk_process_data(df):
                 meesho_charge_rate = 0.0
                 wrong_defective_price = None
             
-            else: # Ajio, FirstCry
+            else: # Ajio, FirstCry, Snapdeal
                 myntra_brand = None
                 myntra_category = None
                 meesho_charge_rate = 0.0
@@ -516,7 +537,8 @@ def bulk_process_data(df):
 
             # Determine fixed/shipping for display
             fixed_shipping_charge = 0.0
-            if platform == 'Ajio' or platform == 'Myntra':
+            # ADDED SNAPDEAL HERE
+            if platform == 'Ajio' or platform == 'Myntra' or platform == 'Snapdeal':
                 fixed_shipping_charge = gt_charge
             elif platform == 'Jiomart':
                 fixed_shipping_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
@@ -525,6 +547,10 @@ def bulk_process_data(df):
             display_commission_fee = final_commission
             if platform == 'Jiomart':
                 display_commission_fee = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
+            # ADDED SNAPDEAL HERE - It also has a gt_charge
+            elif platform == 'Snapdeal':
+                display_commission_fee = final_commission + gt_charge
+
             
             # Store result
             result_row = {
@@ -562,21 +588,21 @@ def bulk_process_data(df):
 def get_excel_template():
     """Generates an Excel template for bulk processing."""
     data = {
-        'SKU': ['SKU001', 'SKU002', 'SKU003', 'SKU004', 'SKU005'],
-        'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0],
-        'Discount': [100.0, 300.0, 500.0, 0.0, 0.0],
-        'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0],
-        'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho'],
-        'Apply_Royalty': ['Yes', 'No', 'Yes', 'No', 'No'],
-        'Marketing_Fee_Rate': [0.04, 0.0, 0.0, 0.0, 0.0],
-        'Weight_in_KG': [0.5, 0.0, 1.2, 0.0, 0.0],
-        'Shipping_Zone': ['Local', None, 'National', None, None],
-        'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None, None],
-        'Wrong_Defective_Price': [None, None, None, None, 1100.0],
-        'Meesho_Charge_Rate': [None, None, None, None, 0.03],
-        'Myntra_Brand': ['KUCHIPOO', None, None, None, None],
-        'Myntra_Category': ['Generic Apparel', None, None, None, None],
-        'Jiomart_Benefit_Rate': [None, None, 0.01, None, None] # Example 1% benefit rate
+        'SKU': ['SKU001', 'SKU002', 'SKU003', 'SKU004', 'SKU005', 'SKU006'],
+        'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0, 900.0],
+        'Discount': [100.0, 300.0, 500.0, 0.0, 0.0, 0.0],
+        'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0, 400.0],
+        'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho', 'Snapdeal'],
+        'Apply_Royalty': ['Yes', 'No', 'Yes', 'No', 'No', 'No'],
+        'Marketing_Fee_Rate': [0.04, 0.0, 0.0, 0.0, 0.0, 0.0],
+        'Weight_in_KG': [0.5, 0.0, 1.2, 0.0, 0.0, 0.0],
+        'Shipping_Zone': ['Local', None, 'National', None, None, None],
+        'Jiomart_Category': ['Tshirts', None, 'Sets Boys', None, None, None],
+        'Wrong_Defective_Price': [None, None, None, None, 1100.0, None],
+        'Meesho_Charge_Rate': [None, None, None, None, 0.03, None],
+        'Myntra_Brand': ['KUCHIPOO', None, None, None, None, None],
+        'Myntra_Category': ['Generic Apparel', None, None, None, None, None],
+        'Jiomart_Benefit_Rate': [None, None, 0.01, None, None, None] # Example 1% benefit rate
     }
     df = pd.DataFrame(data)
 
@@ -588,7 +614,8 @@ def get_excel_template():
     workbook = writer.book
     worksheet = writer.sheets['Data']
 
-    platforms = ','.join(['Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho'])
+    # ADDED SNAPDEAL HERE
+    platforms = ','.join(['Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'])
     royalty = 'Yes,No'
     zones = ','.join(['Local', 'Regional', 'National'])
     categories = ','.join(JIOMART_COMMISSION_RATES.keys())
@@ -600,10 +627,10 @@ def get_excel_template():
     worksheet.data_validation('F2:F100', {'validate': 'list', 'source': royalty})
     worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
     worksheet.data_validation('J2:J100', {'validate': 'list', 'source': categories})
-    worksheet.data_validation('L2:L100', {'validate': 'list', 'source': myntra_brands})
-    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_categories})
+    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_brands})
+    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': myntra_categories})
     # UPDATED: Max value for excel validation changed to 0.5 (50%)
-    worksheet.data_validation('N2:N100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
+    worksheet.data_validation('O2:O100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
 
     writer.close()
     processed_data = output.getvalue()
@@ -649,7 +676,8 @@ if calculation_mode == 'A. Single Product Calculation':
 
     platform_selector = st.radio(
         "Select Platform:",
-        ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho'),
+        # ADDED SNAPDEAL HERE
+        ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
         index=0,
         horizontal=True
     )
@@ -725,7 +753,7 @@ if calculation_mode == 'A. Single Product Calculation':
             st.info(f"Payout is approx. **{(1 - meesho_charge_percent) * 100:.2f}%** of Wrong/Defective Price.")
             meesho_charge_rate = meesho_charge_percent
             
-        else: # FirstCry, Ajio
+        else: # FirstCry, Ajio, Snapdeal
             st.markdown("Marketing Fee Rate: **0%**")
             marketing_fee_rate = 0.0
 
@@ -897,6 +925,9 @@ if calculation_mode == 'A. Single Product Calculation':
                             fixed_charge_label = "GT Charge (Deducted from Sale Price)"
                         elif platform_selector == 'Ajio':
                             fixed_charge_label = "SCM Charges (₹95 + 18% GST)"
+                        # ADDED SNAPDEAL HERE
+                        elif platform_selector == 'Snapdeal':
+                            fixed_charge_label = "RO Fee (8% + 14% Tax)"
                         else: # FirstCry
                             fixed_charge_label = "Fixed Charges"
                             
@@ -941,6 +972,11 @@ if calculation_mode == 'A. Single Product Calculation':
                     elif platform_selector == 'Meesho':
                          platform_fee_label = f"Meesho Fee ({meesho_charge_rate*100:.2f}% of WDP + Tax)"
                          platform_fee_value = final_commission
+                    # ADDED SNAPDEAL HERE
+                    elif platform_selector == 'Snapdeal':
+                         platform_fee_label = f"Total Platform Fee (Comm+RO)"
+                         platform_fee_value = final_commission + gt_charge
+
 
                 col1_r.metric(label=platform_fee_label, value=f"₹ {platform_fee_value:,.2f}")
 
@@ -1023,11 +1059,17 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform', 'Apply_Royalty', 'Marketing_Fee_Rate', 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Wrong_Defective_Price', 'Meesho_Charge_Rate', 'Myntra_Brand', 'Myntra_Category', 'Jiomart_Benefit_Rate']
             for col in required_cols:
                 if col not in input_df.columns:
+                    # Check if the missing column is one of the optional ones
                     if col in ['Wrong_Defective_Price', 'Meesho_Charge_Rate', 'Myntra_Brand', 'Myntra_Category', 'Jiomart_Benefit_Rate']:
-                        input_df[col] = np.nan
+                        input_df[col] = np.nan # Add it as an empty column
+                    # Check for optional columns that might be missing from older templates
+                    elif col in ['Apply_Royalty', 'Marketing_Fee_Rate', 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category']:
+                         input_df[col] = np.nan # Add it as an empty column
                     else:
+                        # If it's a core column like MRP, Product_Cost, Platform, stop
                         st.error(f"Missing required column: **{col}**. Please use the downloaded template.")
                         st.stop()
+
 
             if input_df.empty:
                 st.warning("The uploaded file is empty.")
@@ -1043,9 +1085,24 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
 
             # Rename 'Platform_Fee' column for clarity in bulk view
             output_df = output_df.rename(columns={'Platform_Fee_Incl_GST': 'Platform_Fee_Incl_GST'})
+            
+            # Reorder columns for better readability
+            display_columns = [
+                'ID', 'SKU', 'Platform', 'MRP', 'Discount', 'Sale_Price', 'Product_Cost',
+                'Royalty', 'Platform_Fee_Incl_GST', 'Fixed/Shipping_Charge', 
+                'Jiomart_Benefit', 'TDS', 'TCS', 'Settled_Amount', 'Net_Profit', 'Margin_%'
+            ]
+            # Filter columns that actually exist in the output_df (in case of error column)
+            display_columns = [col for col in display_columns if col in output_df.columns]
+            
+            if 'Error' in output_df.columns:
+                display_columns.append('Error')
+                
+            output_df_display = output_df[display_columns]
+
 
             # Display results
-            st.dataframe(output_df.style.format({
+            st.dataframe(output_df_display.style.format({
                 'MRP': "₹ {:,.2f}",
                 'Discount': "₹ {:,.2f}",
                 'Sale_Price': "₹ {:,.2f}",
@@ -1064,7 +1121,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             # Download Results Button
             output_excel = BytesIO()
             with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                output_df.to_excel(writer, index=False, sheet_name='Results')
+                output_df_display.to_excel(writer, index=False, sheet_name='Results')
             processed_data = output_excel.getvalue()
 
             st.download_button(
@@ -1077,5 +1134,3 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
-
-
