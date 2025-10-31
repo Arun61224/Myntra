@@ -564,44 +564,50 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
 def bulk_process_data(df, mode='Profit Calculation'):
     """Processes DataFrame rows for multi-platform profit calculation."""
     results = []
+    
+    # --- (FIX v3.8) NORMALISE ALL COLUMN NAMES (case-insensitive) ---
+    # We already did this in the UI, but we do it again here to be 100% safe
+    # This standardises all column names to TitleCase, e.g. 'sku' -> 'Sku', 'PRODUCT_COST' -> 'Product_Cost'
+    df.columns = [str(col).strip().title() for col in df.columns]
 
-    # --- Fill default/missing values for ALL columns ---
+    # --- (FIX v3.8) Fill default/missing values for ALL columns using TitleCase ---
     # Old Cols
     df['Apply_Royalty'] = df['Apply_Royalty'].fillna('No')
     df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0) 
-    df['Weight_in_KG'] = df['Weight_in_KG'].fillna(0.5)
+    df['Weight_In_Kg'] = df['Weight_In_Kg'].fillna(0.5) # Renamed
     df['Shipping_Zone'] = df['Shipping_Zone'].fillna('Local')
-    df['Jiomart_Category'] = df['Jiomart_Category'].fillna(value=None) # (FIX)
-    df['SKU'] = df['SKU'].fillna('')
+    df['Jiomart_Category'] = df['Jiomart_Category'].fillna(value=None) 
+    df['Sku'] = df['Sku'].fillna('') # Renamed
     df['Meesho_Charge_Rate'] = df['Meesho_Charge_Rate'].fillna(0.03)
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
     df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0) 
-    df['Target_Profit'] = df['Target_Profit'].fillna(0.0) # (NEW)
+    df['Target_Profit'] = df['Target_Profit'].fillna(0.0) 
     # Old Myntra (Deprecated)
-    df['Myntra_Brand'] = df['Myntra_Brand'].fillna(value=None) # (FIX)
-    df['Myntra_Category'] = df['Myntra_Category'].fillna(value=None) # (FIX)
+    df['Myntra_Brand'] = df['Myntra_Brand'].fillna(value=None) 
+    df['Myntra_Category'] = df['Myntra_Category'].fillna(value=None) 
     # (NEW) Myntra v3 Cols
-    df['Myntra_New_Brand'] = df['Myntra_New_Brand'].fillna(value=None) # (FIX)
-    df['Myntra_New_Category'] = df['Myntra_New_Category'].fillna(value=None) # (FIX)
-    df['Myntra_New_Gender'] = df['Myntra_New_Gender'].fillna(value=None) # (FIX)
+    df['Myntra_New_Brand'] = df['Myntra_New_Brand'].fillna(value=None) 
+    df['Myntra_New_Category'] = df['Myntra_New_Category'].fillna(value=None) 
+    df['Myntra_New_Gender'] = df['Myntra_New_Gender'].fillna(value=None) 
     df['Apply_Kuchipoo_Royalty'] = df['Apply_Kuchipoo_Royalty'].fillna('No')
 
 
     for index, row in df.iterrows():
         try:
-            # --- (NEW FIX) Check for essential values ---
-            if not pd.notna(row['MRP']) or pd.isna(row['MRP']) or not pd.notna(row['Product_Cost']) or pd.isna(row['Product_Cost']):
-                st.warning(f"Skipping row {index + 1} (SKU: {row.get('SKU', 'N/A')}): Missing required value for MRP or Product_Cost.")
+            # --- (FIX v3.8) Access columns using TitleCase ---
+            # Check for essential values
+            if not pd.notna(row['Mrp']) or pd.isna(row['Mrp']) or not pd.notna(row['Product_Cost']) or pd.isna(row['Product_Cost']):
+                st.warning(f"Skipping row {index + 1} (SKU: {row.get('Sku', 'N/A')}): Missing required value for Mrp or Product_Cost.")
                 results.append({
                     'ID': index + 1,
-                    'SKU': row.get('SKU', 'N/A'),
+                    'SKU': row.get('Sku', 'N/A'),
                     'Platform': row.get('Platform', 'N/A'),
-                    'Error': 'Missing MRP or Product_Cost'
+                    'Error': 'Missing Mrp or Product_Cost'
                 })
                 continue # Skip to the next row
 
             # --- Prepare ALL inputs ---
-            mrp = float(row['MRP']) # This is where it was failing
+            mrp = float(row['Mrp'])
             product_cost = float(row['Product_Cost'])
             platform = str(row['Platform']).strip()
             
@@ -612,7 +618,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
             apply_kuchipoo_royalty_bulk = str(row['Apply_Kuchipoo_Royalty']).strip()
             
             # Jiomart
-            weight_in_kg_bulk = float(row['Weight_in_KG'])
+            weight_in_kg_bulk = float(row['Weight_In_Kg']) # Renamed
             shipping_zone_bulk = str(row['Shipping_Zone']).strip()
             jiomart_category_bulk = str(row['Jiomart_Category']).strip() if pd.notna(row['Jiomart_Category']) else None
             jiomart_benefit_rate_bulk = float(row['Jiomart_Benefit_Rate'])
@@ -621,7 +627,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
             meesho_charge_rate_bulk = float(row['Meesho_Charge_Rate'])
             
             # Other
-            sku_bulk = str(row['SKU']).strip()
+            sku_bulk = str(row['Sku']).strip() # Renamed
             apply_royalty_bulk = str(row['Apply_Royalty']).strip() # For non-Myntra
             
             # --- (NEW) Mode-based logic ---
@@ -705,7 +711,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
             # Store result
             result_row = {
                 'ID': index + 1,
-                'SKU': sku_bulk,
+                'SKU': sku_bulk, # Display 'SKU'
                 'Platform': platform,
                 'MRP': mrp,
                 'Discount': final_discount_display,
@@ -726,10 +732,10 @@ def bulk_process_data(df, mode='Profit Calculation'):
             results.append(result_row)
 
         except Exception as e:
-            st.warning(f"Error processing row {index + 1} (SKU: {row.get('SKU', 'N/A')}): {e}")
+            st.warning(f"Error processing row {index + 1} (SKU: {row.get('Sku', 'N/A')}): {e}")
             results.append({
                 'ID': index + 1,
-                'SKU': row.get('SKU', 'N/A'),
+                'SKU': row.get('Sku', 'N/A'),
                 'Platform': row.get('Platform', 'N/A'),
                 'Error': str(e)
             })
@@ -788,20 +794,21 @@ def get_commission_rates_excel():
 # --- (MODIFIED) Template Generation ---
 def get_excel_template():
     """Generates an Excel template for bulk processing."""
+    # --- (FIX v3.8) Use TitleCase for all column names ---
     data = {
-        'SKU': ['SKU001', 'SKU002', 'SKU003', 'SKU004', 'SKU005', 'SKU006', 'SKU007'],
-        'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0, 900.0, 1999.0],
+        'Sku': ['SKU001', 'SKU002', 'SKU003', 'SKU004', 'SKU005', 'SKU006', 'SKU007'],
+        'Mrp': [1000.0, 1500.0, 2000.0, 800.0, 1200.0, 900.0, 1999.0],
         'Discount': [100.0, 300.0, 500.0, 0.0, 0.0, 0.0, 500.0],
         'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0, 400.0, 700.0],
-        'Target_Profit': [100.0, 150.0, 200.0, 50.0, 120.0, 80.0, 250.0], # (NEW)
+        'Target_Profit': [100.0, 150.0, 200.0, 50.0, 120.0, 80.0, 250.0], 
         'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho', 'Snapdeal', 'Myntra'],
-        'Weight_in_KG': [0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 0.0],
+        'Weight_In_Kg': [0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 0.0], # Renamed
         'Shipping_Zone': [None, None, 'National', None, None, None, None],
         'Jiomart_Category': [None, None, 'Sets Boys', None, None, None, None],
         'Jiomart_Benefit_Rate': [None, None, 0.01, None, None, None, None],
         'Wrong_Defective_Price': [None, None, None, None, 1100.0, None, None],
         'Meesho_Charge_Rate': [None, None, None, None, 0.03, None, None],
-        'Marketing_Fee_Rate': [None, None, None, None, None, None, None], # (FIX)
+        'Marketing_Fee_Rate': [None, None, None, None, None, None, None], 
         'Apply_Royalty': ['No', 'No', 'Yes', 'No', 'No', 'No', 'No'], # For non-Myntra
         'Myntra_New_Brand': ['KUCHIPOO', None, None, None, None, None, 'YK Disney'],
         'Myntra_New_Category': ['Sweatshirts', None, None, None, None, None, 'Tshirts'],
@@ -829,17 +836,18 @@ def get_excel_template():
     myntra_categories_list = ','.join(all_myntra_categories)
     myntra_genders = 'Boys,Girls'
     
-    # --- (FIXED) Data validation column mapping ---
+    # --- (FIX v3.8) Data validation column mapping (columns shifted) ---
     worksheet.data_validation('F2:F100', {'validate': 'list', 'source': platforms})
-    worksheet.data_validation('H2:H100', {'validate': 'list', 'source': zones}) # Was I
-    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': jio_categories}) # Was J
-    worksheet.data_validation('J2:J100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) # Was K
-    # M is new Marketing_Fee_Rate, no validation needed
+    worksheet.data_validation('G2:G100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 99.0}) # Weight_In_Kg
+    worksheet.data_validation('H2:H100', {'validate': 'list', 'source': zones}) 
+    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': jio_categories}) 
+    worksheet.data_validation('J2:J100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
+    # M is Marketing_Fee_Rate
     worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) 
     worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
     worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders})
-    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # This line was missing/broken
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) 
 
     writer.close()
     processed_data = output.getvalue()
@@ -1193,9 +1201,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.7)",
+            label="⬇️ Download Excel Template (v3.8)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.7.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.8.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
@@ -1230,23 +1238,30 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 else:
                     raise e
             
-            # --- (NEW) Clean column names ---
-            input_df.columns = input_df.columns.str.strip()
+            # --- (FIX v3.8) Clean column names (case-insensitive and strip spaces) ---
+            input_df.columns = [str(col).strip().title() for col in input_df.columns]
             
-            # --- Check for new Myntra columns ---
-            required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform']
+            # --- (FIX v3.8) Check for TitleCase column names ---
+            required_cols = ['Sku', 'Mrp', 'Discount', 'Product_Cost', 'Platform']
             optional_cols = [
-                'Target_Profit', # (NEW)
-                'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Jiomart_Benefit_Rate',
-                'Wrong_Defective_Price', 'Meesho_Charge_Rate', 
-                'Marketing_Fee_Rate', # (FIX)
+                'Target_Profit', 
+                'Weight_In_Kg', # Renamed
+                'Shipping_Zone', 
+                'Jiomart_Category', 
+                'Jiomart_Benefit_Rate',
+                'Wrong_Defective_Price', 
+                'Meesho_Charge_Rate', 
+                'Marketing_Fee_Rate', 
                 'Apply_Royalty', # Old royalty
-                'Myntra_New_Brand', 'Myntra_New_Category', 'Myntra_New_Gender', 'Apply_Kuchipoo_Royalty' # New Myntra
+                'Myntra_New_Brand', 
+                'Myntra_New_Category', 
+                'Myntra_New_Gender', 
+                'Apply_Kuchipoo_Royalty' # New Myntra
             ]
             
             missing_req_cols = [col for col in required_cols if col not in input_df.columns]
             if missing_req_cols:
-                st.error(f"Missing required column(s): **{', '.join(missing_req_cols)}**. Please use the downloaded template.")
+                st.error(f"Missing required column(s): **{', '.join(missing_req_cols)}**. Please use the downloaded template. (Note: column names are now case-insensitive, e.g. 'sku' or 'SKU' is OK)")
                 st.stop()
             
             for col in optional_cols:
@@ -1259,7 +1274,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 st.warning("The uploaded file is empty.")
                 st.stop()
             
-            # --- (NEW) Check for Target_Profit column if in Target Discount mode ---
+            # --- (FIX v3.8) Check for Target_Profit column if in Target Discount mode ---
             if bulk_calc_mode == 'Target Discount' and 'Target_Profit' not in input_df.columns:
                 st.error("Missing required column for this mode: **Target_Profit**. Please download the new template and fill this column.")
                 st.stop()
@@ -1276,8 +1291,18 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             # Rename columns for clarity
             output_df = output_df.rename(columns={
                 'Platform_Fee_Incl_GST': 'Total_Platform_Fee',
-                'Fixed/Shipping_Charge(Internal)': 'Fixed_Fee_Component'
+                'Fixed/Shipping_Charge(Internal)': 'Fixed_Fee_Component',
+                'Sku': 'SKU', # Rename back for display
+                'Mrp': 'MRP',
+                'Product_Cost': 'Product_Cost'
             })
+            
+            # Also rename for selling price df
+            selling_price_output_df = selling_price_output_df.rename(columns={
+                'Sku': 'SKU',
+                'Mrp': 'MRP'
+            })
+
 
             # Reorder columns
             display_columns = [
@@ -1356,4 +1381,5 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
 
