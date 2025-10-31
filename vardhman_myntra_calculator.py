@@ -571,19 +571,19 @@ def bulk_process_data(df, mode='Profit Calculation'):
     df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0) 
     df['Weight_in_KG'] = df['Weight_in_KG'].fillna(0.5)
     df['Shipping_Zone'] = df['Shipping_Zone'].fillna('Local')
-    df['Jiomart_Category'] = df['Jiomart_Category'].fillna(None)
+    df['Jiomart_Category'] = df['Jiomart_Category'].fillna(value=None) # (FIX)
     df['SKU'] = df['SKU'].fillna('')
     df['Meesho_Charge_Rate'] = df['Meesho_Charge_Rate'].fillna(0.03)
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
     df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0) 
     df['Target_Profit'] = df['Target_Profit'].fillna(0.0) # (NEW)
     # Old Myntra (Deprecated)
-    df['Myntra_Brand'] = df['Myntra_Brand'].fillna(None)
-    df['Myntra_Category'] = df['Myntra_Category'].fillna(None)
+    df['Myntra_Brand'] = df['Myntra_Brand'].fillna(value=None) # (FIX)
+    df['Myntra_Category'] = df['Myntra_Category'].fillna(value=None) # (FIX)
     # (NEW) Myntra v3 Cols
-    df['Myntra_New_Brand'] = df['Myntra_New_Brand'].fillna(None)
-    df['Myntra_New_Category'] = df['Myntra_New_Category'].fillna(None)
-    df['Myntra_New_Gender'] = df['Myntra_New_Gender'].fillna(None)
+    df['Myntra_New_Brand'] = df['Myntra_New_Brand'].fillna(value=None) # (FIX)
+    df['Myntra_New_Category'] = df['Myntra_New_Category'].fillna(value=None) # (FIX)
+    df['Myntra_New_Gender'] = df['Myntra_New_Gender'].fillna(value=None) # (FIX)
     df['Apply_Kuchipoo_Royalty'] = df['Apply_Kuchipoo_Royalty'].fillna('No')
 
 
@@ -1169,11 +1169,11 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.2)",
+            label="⬇️ Download Excel Template (v3.3)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.2.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.3.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            help="Download this template and fill in your product details. (Now includes Target_Profit & Marketing_Fee_Rate)",
+            help="Download this template and fill in your product details. (Bugfix update)",
             use_container_width=True
         )
         
