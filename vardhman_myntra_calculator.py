@@ -566,12 +566,19 @@ def bulk_process_data(df, mode='Profit Calculation'):
     results = []
     
     # --- (FIX v3.8) NORMALISE ALL COLUMN NAMES (case-insensitive) ---
-    # We already did this in the UI, but we do it again here to be 100% safe
-    # This standardises all column names to TitleCase, e.g. 'sku' -> 'Sku', 'PRODUCT_COST' -> 'Product_Cost'
     df.columns = [str(col).strip().title() for col in df.columns]
 
-    # --- (FIX v3.8) Fill default/missing values for ALL columns using TitleCase ---
-    # Old Cols
+    # --- (FIX v3.9) Coerce all numeric columns to numbers, non-numeric text becomes NaN ---
+    # This fixes errors if columns contain empty strings '' or text 'NA'
+    num_cols = ['Mrp', 'Discount', 'Product_Cost', 'Target_Profit', 'Weight_In_Kg', 
+                'Jiomart_Benefit_Rate', 'Wrong_Defective_Price', 'Meesho_Charge_Rate', 
+                'Marketing_Fee_Rate']
+    for col in num_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce') # This turns '', 'NA' etc. into np.nan
+        # No need for else, fillna will handle missing columns later if we add them to check
+
+    # --- (FIX v3.8 & v3.9) Fill default/missing values (np.nan) for ALL columns using TitleCase ---
     df['Apply_Royalty'] = df['Apply_Royalty'].fillna('No')
     df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0) 
     df['Weight_In_Kg'] = df['Weight_In_Kg'].fillna(0.5) # Renamed
@@ -582,6 +589,10 @@ def bulk_process_data(df, mode='Profit Calculation'):
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
     df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0) 
     df['Target_Profit'] = df['Target_Profit'].fillna(0.0) 
+    df['Mrp'] = df['Mrp'].fillna(0.0) # Fill NaN Mrp with 0
+    df['Product_Cost'] = df['Product_Cost'].fillna(0.0) # Fill NaN Product_Cost with 0
+    df['Discount'] = df['Discount'].fillna(0.0) # Fill NaN Discount with 0
+    
     # Old Myntra (Deprecated)
     df['Myntra_Brand'] = df['Myntra_Brand'].fillna(value=None) 
     df['Myntra_Category'] = df['Myntra_Category'].fillna(value=None) 
@@ -590,19 +601,19 @@ def bulk_process_data(df, mode='Profit Calculation'):
     df['Myntra_New_Category'] = df['Myntra_New_Category'].fillna(value=None) 
     df['Myntra_New_Gender'] = df['Myntra_New_Gender'].fillna(value=None) 
     df['Apply_Kuchipoo_Royalty'] = df['Apply_Kuchipoo_Royalty'].fillna('No')
+    df['Platform'] = df['Platform'].fillna('Unknown') # Add fillna for Platform
 
 
     for index, row in df.iterrows():
         try:
-            # --- (FIX v3.8) Access columns using TitleCase ---
-            # Check for essential values
-            if not pd.notna(row['Mrp']) or pd.isna(row['Mrp']) or not pd.notna(row['Product_Cost']) or pd.isna(row['Product_Cost']):
-                st.warning(f"Skipping row {index + 1} (SKU: {row.get('Sku', 'N/A')}): Missing required value for Mrp or Product_Cost.")
+            # --- (FIX v3.9) Access columns using TitleCase and check for > 0 ---
+            if not pd.notna(row['Mrp']) or row['Mrp'] <= 0 or not pd.notna(row['Product_Cost']) or row['Product_Cost'] <= 0:
+                st.warning(f"Skipping row {index + 1} (SKU: {row.get('Sku', 'N/A')}): Missing or invalid (0) required value for Mrp or Product_Cost.")
                 results.append({
                     'ID': index + 1,
                     'SKU': row.get('Sku', 'N/A'),
                     'Platform': row.get('Platform', 'N/A'),
-                    'Error': 'Missing Mrp or Product_Cost'
+                    'Error': 'Missing or invalid (0) Mrp or Product_Cost'
                 })
                 continue # Skip to the next row
 
@@ -847,7 +858,7 @@ def get_excel_template():
     worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
     worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders})
-    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) 
+    workssheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) 
 
     writer.close()
     processed_data = output.getvalue()
@@ -1201,9 +1212,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.8)",
+            label="⬇️ Download Excel Template (v3.9)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.8.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.9.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
@@ -1228,9 +1239,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
 
     if uploaded_file is not None:
         try:
-            # --- (MODIFIED) Read only .xlsx and specify sheet_name='Data' ---
+            # --- (FIX v3.9) Read only .xlsx, specify sheet_name='Data', read all as string ---
             try:
-                input_df = pd.read_excel(uploaded_file, sheet_name='Data')
+                input_df = pd.read_excel(uploaded_file, sheet_name='Data', dtype=str)
             except ValueError as e:
                 if 'Worksheet named' in str(e):
                     st.error(f"Error: Worksheet 'Data' not found in the Excel file. Please make sure your data is on a sheet named 'Data'.")
@@ -1381,5 +1392,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
-
 
