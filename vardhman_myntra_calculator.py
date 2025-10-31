@@ -834,9 +834,9 @@ def get_excel_template():
 
     output = BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    
+    # --- Sheet 1: Data ---
     df.to_excel(writer, index=False, sheet_name='Data')
-
-    # Add Data Validation for better UX
     workbook = writer.book
     worksheet = writer.sheets['Data']
 
@@ -861,9 +861,34 @@ def get_excel_template():
     worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) 
     worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
-    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders}) # (FIX v4.1) Removed typo D
-    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # (FIX v4.1) Typo corrected 
+    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders}) 
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) 
 
+    # --- (NEW) Sheet 2: Instructions ---
+    instructions_data = [
+        {"Platform": "All Platforms", "Required Columns": "Sku, Mrp, Product_Cost, Platform", "Notes": "Yeh columns hamesha bharne hain (Mrp/Cost 0 nahi ho sakte)."},
+        {"Platform": "All (Mode: Profit Calc)", "Required Columns": "Discount", "Notes": "Agar 'Profit Calculation' mode select kiya hai. (Meesho ke liye 'Wrong_Defective_Price')"},
+        {"Platform": "All (Mode: Target Discount)", "Required Columns": "Target_Profit", "Notes": "Agar 'Target Discount' mode select kiya hai."},
+        {"Platform": "---", "Required Columns": "---", "Notes": "---"},
+        {"Platform": "Myntra", "Required Columns": "Myntra_New_Brand, Myntra_New_Category, Myntra_New_Gender", "Notes": "Myntra calculations ke liye zaroori."},
+        {"Platform": "Myntra (KUCHIPOO)", "Required Columns": "Apply_Kuchipoo_Royalty", "Notes": "Agar brand KUCHIPOO hai, toh 'Yes' ya 'No' select karein."},
+        {"Platform": "Jiomart", "Required Columns": "Weight_In_Kg, Shipping_Zone, Jiomart_Category", "Notes": "Jiomart shipping aur commission ke liye zaroori."},
+        {"Platform": "Meesho", "Required Columns": "Meesho_Charge_Rate", "Notes": "Default 3% hai, aap badal sakte hain."},
+        {"Platform": "Ajio / FirstCry / Snapdeal", "Required Columns": "Apply_Royalty", "Notes": "Optional hai, default 'No' hai."},
+        {"Platform": "---", "Required Columns": "---", "Notes": "---"},
+        {"Platform": "General Note 1", "Required Columns": "Column Names", "Notes": "Column names (jaise Sku, Mrp) template jaise hi hone chahiye. (Case/space se farak nahi padega)"},
+        {"Platform": "General Note 2", "Required Columns": "Blank Cells", "Notes": "Mrp aur Product_Cost ke alawa baaki columns khaali (blank) chhod sakte hain."},
+    ]
+    instructions_df = pd.DataFrame(instructions_data)
+    instructions_df.to_excel(writer, index=False, sheet_name='Instructions')
+    
+    # Format instructions sheet
+    worksheet_instructions = writer.sheets['Instructions']
+    worksheet_instructions.set_column('A:A', 25) # Platform
+    worksheet_instructions.set_column('B:B', 45) # Required Columns
+    worksheet_instructions.set_column('C:C', 70) # Notes
+
+    # --- Close writer ---
     writer.close()
     processed_data = output.getvalue()
     return processed_data
@@ -1216,11 +1241,11 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v4.1)",
+            label="⬇️ Download Excel Template (v4.2)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v4.1.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.2.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            help="Download this template and fill in your product details. (xlsx only)",
+            help="Download this template (with Instructions sheet) and fill in your product details.",
             use_container_width=True
         )
         
