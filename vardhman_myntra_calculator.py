@@ -568,6 +568,10 @@ def bulk_process_data(df, mode='Profit Calculation'):
     # --- (FIX v3.8) NORMALISE ALL COLUMN NAMES (case-insensitive) ---
     df.columns = [str(col).strip().title() for col in df.columns]
 
+    # --- (FIX v4.1) Force ALL columns to string type first to avoid date conversion errors ---
+    for col in df.columns:
+        df[col] = df[col].astype(str)
+
     # --- (FIX v3.9) Coerce all numeric columns to numbers, non-numeric text becomes NaN ---
     # This fixes errors if columns contain empty strings '' or text 'NA'
     num_cols = ['Mrp', 'Discount', 'Product_Cost', 'Target_Profit', 'Weight_In_Kg', 
@@ -857,8 +861,8 @@ def get_excel_template():
     worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) 
     worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
-    worksheet.data_validation('Q2:Q100', {'validate': 'list',D'source': myntra_genders})
-    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # (FIX v4.0) Typo corrected 
+    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders}) # (FIX v4.1) Removed typo D
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # (FIX v4.1) Typo corrected 
 
     writer.close()
     processed_data = output.getvalue()
@@ -1212,9 +1216,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v4.0)",
+            label="⬇️ Download Excel Template (v4.1)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v4.0.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.1.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
