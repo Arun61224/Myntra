@@ -568,7 +568,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
     # --- Fill default/missing values for ALL columns ---
     # Old Cols
     df['Apply_Royalty'] = df['Apply_Royalty'].fillna('No')
-    df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0)
+    df['Marketing_Fee_Rate'] = df['Marketing_Fee_Rate'].fillna(0.0) 
     df['Weight_in_KG'] = df['Weight_in_KG'].fillna(0.5)
     df['Shipping_Zone'] = df['Shipping_Zone'].fillna('Local')
     df['Jiomart_Category'] = df['Jiomart_Category'].fillna(None)
@@ -777,6 +777,7 @@ def get_excel_template():
         'Jiomart_Benefit_Rate': [None, None, 0.01, None, None, None, None],
         'Wrong_Defective_Price': [None, None, None, None, 1100.0, None, None],
         'Meesho_Charge_Rate': [None, None, None, None, 0.03, None, None],
+        'Marketing_Fee_Rate': [None, None, None, None, None, None, None], # (FIX)
         'Apply_Royalty': ['No', 'No', 'Yes', 'No', 'No', 'No', 'No'], # For non-Myntra
         'Myntra_New_Brand': ['KUCHIPOO', None, None, None, None, None, 'YK Disney'],
         'Myntra_New_Category': ['Sweatshirts', None, None, None, None, None, 'Tshirts'],
@@ -804,16 +805,17 @@ def get_excel_template():
     myntra_categories_list = ','.join(all_myntra_categories)
     myntra_genders = 'Boys,Girls'
     
-    # Note: Column letters shift after adding 'Target_Profit' at E
+    # Note: Column letters shift after adding 'Target_Profit' at E and 'Marketing_Fee_Rate' at M
     worksheet.data_validation('F2:F100', {'validate': 'list', 'source': platforms})
     worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
     worksheet.data_validation('J2:J100', {'validate': 'list', 'source': jio_categories})
     worksheet.data_validation('K2:K100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
-    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': royalty_yes_no})
-    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': myntra_brands})
-    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_categories_list})
-    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_genders})
-    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': royalty_yes_no})
+    # M is new Marketing_Fee_Rate, no validation needed
+    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) # Was M
+    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands}) # Was N
+    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list}) # Was O
+    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders}) # Was P
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # Was Q
 
     writer.close()
     processed_data = output.getvalue()
@@ -1167,11 +1169,11 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.1)",
+            label="⬇️ Download Excel Template (v3.2)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.1.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.2.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            help="Download this template and fill in your product details. (Now includes Target_Profit column)",
+            help="Download this template and fill in your product details. (Now includes Target_Profit & Marketing_Fee_Rate)",
             use_container_width=True
         )
         
@@ -1207,6 +1209,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Target_Profit', # (NEW)
                 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Jiomart_Benefit_Rate',
                 'Wrong_Defective_Price', 'Meesho_Charge_Rate', 
+                'Marketing_Fee_Rate', # (FIX)
                 'Apply_Royalty', # Old royalty
                 'Myntra_New_Brand', 'Myntra_New_Category', 'Myntra_New_Gender', 'Apply_Kuchipoo_Royalty' # New Myntra
             ]
@@ -1293,3 +1296,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
