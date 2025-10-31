@@ -1193,9 +1193,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.6)",
+            label="⬇️ Download Excel Template (v3.7)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.6.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.7.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
@@ -1220,8 +1220,18 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
 
     if uploaded_file is not None:
         try:
-            # --- (MODIFIED) Read only .xlsx ---
-            input_df = pd.read_excel(uploaded_file)
+            # --- (MODIFIED) Read only .xlsx and specify sheet_name='Data' ---
+            try:
+                input_df = pd.read_excel(uploaded_file, sheet_name='Data')
+            except ValueError as e:
+                if 'Worksheet named' in str(e):
+                    st.error(f"Error: Worksheet 'Data' not found in the Excel file. Please make sure your data is on a sheet named 'Data'.")
+                    st.stop()
+                else:
+                    raise e
+            
+            # --- (NEW) Clean column names ---
+            input_df.columns = input_df.columns.str.strip()
             
             # --- Check for new Myntra columns ---
             required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform']
