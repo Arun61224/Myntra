@@ -224,11 +224,6 @@ def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag)
     return sale_price * royalty_rate
 
 
-# --- (OLD) Myntra Commission/GT Charge Functions (AB RAKHNE KI ZAROORAT NAHI) ---
-# def calculate_myntra_gt_charges(sale_price): ... (REMOVED)
-# def get_myntra_commission_by_category(brand, category): ... (REMOVED)
-
-
 # --- (EXISTING) Jiomart Functions (No Change) ---
 def calculate_jiomart_fixed_fee_base(sale_price):
     if sale_price <= 500: return 15.00
@@ -338,13 +333,14 @@ def perform_calculations(mrp, discount,
 
     # --- PLATFORM SPECIFIC LOGIC ---
     if platform == 'Meesho':
-        if wrong_defective_price is None or wrong_defective_price <= 0:
-            customer_paid_amount = mrp
-        else:
+        if wrong_defective_price is not None and wrong_defective_price > 0:
             customer_paid_amount = wrong_defective_price
+        else:
+            # If no WDP is given, assume it's same as MRP (0 discount)
+            customer_paid_amount = mrp
             
         sale_price = customer_paid_amount
-        discount = mrp - sale_price
+        discount = mrp - sale_price # Recalculate discount based on WDP
 
         commission_rate = meesho_charge_rate
         commission_base = customer_paid_amount * commission_rate
@@ -501,7 +497,7 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
                                         # Jiomart
                                         weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
                                         # Meesho
-                                        meesho_charge_rate=0.0, wrong_defective_price=None,
+                                        meesho_charge_rate=0.0, wrong_defective_price=None, # WDP is NOT used for finding, only for final calc
                                         # Deprecated
                                         apply_royalty='No'):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
@@ -517,49 +513,55 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
         return results[10]
 
     if platform == 'Meesho':
-        max_profit = get_profit(0.0, mrp)
+        # Calculate profit at WDP=MRP (0 discount)
+        max_profit = get_profit(0.0, mrp) 
         if max_profit < target_profit:
-            return None, max_profit, 0.0
+            return None, max_profit, 0.0 # Return (None, MaxProfit, 0% discount)
             
         wdp_step = 1.0
         required_wdp = mrp
 
         while required_wdp >= 0:
-            current_profit = get_profit(mrp - required_wdp, round(required_wdp, 2))
+            current_profit = get_profit(0.0, round(required_wdp, 2)) # Pass 0 for discount, WDP for wdp
             if current_profit < target_profit:
+                # We went one step too far. Go back one step.
                 final_wdp = required_wdp + wdp_step
-                target_wdp = min(final_wdp, mrp)
-                discount_amount = mrp - target_wdp
+                target_wdp = min(final_wdp, mrp) # Don't go above MRP
+                
+                discount_amount = mrp - target_wdp # This is the "discount"
                 discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
-                final_profit = get_profit(discount_amount, target_wdp)
+                final_profit = get_profit(0.0, target_wdp)
                 return discount_amount, final_profit, discount_percent 
             required_wdp -= wdp_step
             
-        final_profit = get_profit(mrp, 0.0)
-        return mrp, final_profit, 100.0
+        # If loop finishes, it means even at WDP=0, profit is >= target
+        final_profit = get_profit(0.0, 0.0)
+        return mrp, final_profit, 100.0 # Return (Full Discount, Profit at 0 WDP, 100% discount)
 
     # Original logic for other platforms
-    initial_profit = get_profit(0.0)
+    initial_profit = get_profit(0.0) # Profit at 0 discount
     if initial_profit < target_profit:
-        return None, initial_profit, 0.0
+        return None, initial_profit, 0.0 # Return (None, MaxProfit, 0% discount)
 
     discount_step = 1.0
     required_discount = 0.0
     while required_discount <= mrp:
         current_profit = get_profit(required_discount)
         if current_profit < target_profit:
+            # We went one step too far. Go back one step.
             final_discount = max(0.0, required_discount - discount_step)
             final_profit = get_profit(final_discount)
             discount_percent = (final_discount / mrp) * 100
             return final_discount, final_profit, discount_percent
         required_discount += discount_step
 
+    # If loop finishes, it means even at 100% discount, profit is >= target
     final_profit = get_profit(mrp)
     return mrp, final_profit, 100.0
 
 
 # --- (MODIFIED) Bulk Calculation Handler ---
-def bulk_process_data(df):
+def bulk_process_data(df, mode='Profit Calculation'):
     """Processes DataFrame rows for multi-platform profit calculation."""
     results = []
 
@@ -574,6 +576,7 @@ def bulk_process_data(df):
     df['Meesho_Charge_Rate'] = df['Meesho_Charge_Rate'].fillna(0.03)
     df['Wrong_Defective_Price'] = df['Wrong_Defective_Price'].fillna(0.0)
     df['Jiomart_Benefit_Rate'] = df['Jiomart_Benefit_Rate'].fillna(0.0) 
+    df['Target_Profit'] = df['Target_Profit'].fillna(0.0) # (NEW)
     # Old Myntra (Deprecated)
     df['Myntra_Brand'] = df['Myntra_Brand'].fillna(None)
     df['Myntra_Category'] = df['Myntra_Category'].fillna(None)
@@ -588,7 +591,6 @@ def bulk_process_data(df):
         try:
             # --- Prepare ALL inputs ---
             mrp = float(row['MRP'])
-            discount = float(row['Discount']) if pd.notna(row['Discount']) else 0.0
             product_cost = float(row['Product_Cost'])
             platform = str(row['Platform']).strip()
             
@@ -606,13 +608,45 @@ def bulk_process_data(df):
             
             # Meesho
             meesho_charge_rate_bulk = float(row['Meesho_Charge_Rate'])
-            wrong_defective_price_bulk = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) else None
             
             # Other
             sku_bulk = str(row['SKU']).strip()
-            apply_royalty_bulk = str(row['Apply_Royalty']).strip() # For non-Myntra platforms
+            apply_royalty_bulk = str(row['Apply_Royalty']).strip() # For non-Myntra
+            
+            # --- (NEW) Mode-based logic ---
+            target_profit_bulk = float(row['Target_Profit'])
+            discount_from_sheet = float(row['Discount']) if pd.notna(row['Discount']) else 0.0
+            wdp_from_sheet = float(row['Wrong_Defective_Price']) if pd.notna(row['Wrong_Defective_Price']) and row['Wrong_Defective_Price'] > 0 else None
+            
+            discount_to_use = 0.0
+            wdp_to_use = None
 
-            # --- Platform-specific variable cleaning ---
+            if mode == 'Target Discount':
+                # --- Target Discount Mode ---
+                (calculated_discount, final_profit_at_target, _) = find_discount_for_target_profit(
+                    mrp, target_profit_bulk, product_cost, platform,
+                    myntra_new_brand_bulk, myntra_new_category_bulk, myntra_new_gender_bulk, apply_kuchipoo_royalty_bulk,
+                    weight_in_kg_bulk, shipping_zone_bulk, jiomart_category_bulk, jiomart_benefit_rate_bulk,
+                    meesho_charge_rate_bulk, None, # Pass None for WDP, let function calculate it
+                    apply_royalty_bulk
+                )
+                
+                if calculated_discount is None:
+                    # Cannot achieve target
+                    discount_to_use = 0.0 # Use 0 discount
+                    if platform == 'Meesho':
+                        wdp_to_use = mrp # WDP = MRP (0 discount)
+                else:
+                    discount_to_use = calculated_discount
+                    if platform == 'Meesho':
+                        wdp_to_use = mrp - calculated_discount # Set WDP for final calc
+            
+            else:
+                # --- Profit Calculation Mode ---
+                discount_to_use = discount_from_sheet
+                wdp_to_use = wdp_from_sheet # Use WDP from sheet
+            
+            # --- Platform-specific variable cleaning (run AFTER mode logic) ---
             if platform != 'Myntra':
                 myntra_new_brand_bulk = None
                 myntra_new_category_bulk = None
@@ -625,7 +659,7 @@ def bulk_process_data(df):
                 jiomart_benefit_rate_bulk = 0.0
             if platform != 'Meesho':
                 meesho_charge_rate_bulk = 0.0
-                wrong_defective_price_bulk = None
+                # wdp_to_use = None # Keep this, it's set by target logic
             if platform in ['Myntra', 'Meesho']:
                 apply_royalty_bulk = 'No' # Use new Myntra logic or 0 for Meesho
 
@@ -637,12 +671,15 @@ def bulk_process_data(df):
              net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
              jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees
              ) = perform_calculations(
-                 mrp, discount, product_cost, platform,
+                 mrp, discount_to_use, product_cost, platform,
                  myntra_new_brand_bulk, myntra_new_category_bulk, myntra_new_gender_bulk, apply_kuchipoo_royalty_bulk,
                  weight_in_kg_bulk, shipping_zone_bulk, jiomart_category_bulk, jiomart_benefit_rate_bulk,
-                 meesho_charge_rate_bulk, wrong_defective_price_bulk,
+                 meesho_charge_rate_bulk, wdp_to_use,
                  apply_royalty_bulk, 0.0 # Pass deprecated params
                 )
+            
+            # Recalculate final discount for display (esp. for Meesho)
+            final_discount_display = mrp - sale_price
 
             # Determine fixed/shipping for display
             fixed_shipping_charge = gt_charge # gt_charge now holds the final fixed fee for all platforms
@@ -660,8 +697,9 @@ def bulk_process_data(df):
                 'SKU': sku_bulk,
                 'Platform': platform,
                 'MRP': mrp,
-                'Discount': discount,
+                'Discount': final_discount_display,
                 'Sale_Price': sale_price,
+                'Target_Profit_In': target_profit_bulk if mode == 'Target Discount' else np.nan,
                 'Product_Cost': product_cost,
                 'Royalty': royalty_fee,
                 'Platform_Fee_Incl_GST': display_commission_fee, 
@@ -731,6 +769,7 @@ def get_excel_template():
         'MRP': [1000.0, 1500.0, 2000.0, 800.0, 1200.0, 900.0, 1999.0],
         'Discount': [100.0, 300.0, 500.0, 0.0, 0.0, 0.0, 500.0],
         'Product_Cost': [450.0, 600.0, 800.0, 300.0, 500.0, 400.0, 700.0],
+        'Target_Profit': [100.0, 150.0, 200.0, 50.0, 120.0, 80.0, 250.0], # (NEW)
         'Platform': ['Myntra', 'Ajio', 'Jiomart', 'FirstCry', 'Meesho', 'Snapdeal', 'Myntra'],
         'Weight_in_KG': [0.0, 0.0, 1.2, 0.0, 0.0, 0.0, 0.0],
         'Shipping_Zone': [None, None, 'National', None, None, None, None],
@@ -765,15 +804,16 @@ def get_excel_template():
     myntra_categories_list = ','.join(all_myntra_categories)
     myntra_genders = 'Boys,Girls'
     
-    worksheet.data_validation('E2:E100', {'validate': 'list', 'source': platforms})
-    worksheet.data_validation('H2:H100', {'validate': 'list', 'source': zones})
-    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': jio_categories})
-    worksheet.data_validation('J2:J100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
-    worksheet.data_validation('L2:L100', {'validate': 'list', 'source': royalty_yes_no})
-    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': myntra_brands})
-    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': myntra_categories_list})
-    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_genders})
-    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': royalty_yes_no})
+    # Note: Column letters shift after adding 'Target_Profit' at E
+    worksheet.data_validation('F2:F100', {'validate': 'list', 'source': platforms})
+    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
+    worksheet.data_validation('J2:J100', {'validate': 'list', 'source': jio_categories})
+    worksheet.data_validation('K2:K100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
+    worksheet.data_validation('M2:M100', {'validate': 'list', 'source': royalty_yes_no})
+    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': myntra_brands})
+    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_categories_list})
+    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_genders})
+    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': royalty_yes_no})
 
     writer.close()
     processed_data = output.getvalue()
@@ -804,9 +844,9 @@ if calculation_mode == 'A. Single Product Calculation':
             index=0, label_visibility="collapsed", horizontal=True
         )
 else:
-    single_calc_mode = 'Profit Calculation'
+    single_calc_mode = 'Profit Calculation' # Default for bulk
     with col_sub_mode_placeholder:
-        st.write("")
+        st.write("") # Keep space
 st.divider()
 
 # ==============================================================================
@@ -959,7 +999,7 @@ if calculation_mode == 'A. Single Product Calculation':
                     new_mrp, product_margin_target_rs, product_cost, platform_selector,
                     myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty,
                     weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
-                    meesho_charge_rate, wrong_defective_price,
+                    meesho_charge_rate, None, # Pass None for WDP
                     apply_royalty
                 )
                 
@@ -1002,7 +1042,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 col1_l.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}")
                 
                 if platform_selector == 'Meesho':
-                    display_wdp = wrong_defective_price if single_calc_mode == 'Profit Calculation' else (new_mrp - new_discount)
+                    display_wdp = sale_price # sale_price is WDP for meesho
                     calculated_discount = new_mrp - display_wdp
                     discount_percent = (calculated_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
                     col2_l.metric(label="Discount Amount (MRP - WDP)", value=f"₹ {calculated_discount:,.2f}", delta=f"{discount_percent:,.2f}% of MRP", delta_color="off")
@@ -1104,7 +1144,21 @@ if calculation_mode == 'A. Single Product Calculation':
 # ==============================================================================
 elif calculation_mode == 'B. Bulk Processing (Excel)':
     st.markdown("##### **Excel Bulk Processing**")
-    st.info("ℹ️ Please use the template provided below. All new Myntra columns (`Myntra_New_Brand`, `Myntra_New_Category`, etc.) have been added.")
+    
+    # --- (NEW) Bulk Mode Selection ---
+    bulk_calc_mode = st.radio(
+        "Select Bulk Calculation Type:",
+        ('Profit Calculation', 'Target Discount'),
+        index=0, horizontal=True, key="bulk_mode_radio",
+        help="**Profit Calculation:** Uses the 'Discount' column to calculate profit.\n"
+             "**Target Discount:** Uses the 'Target_Profit' column to calculate the required discount."
+    )
+    
+    st.info(
+        f"**Mode Selected: {bulk_calc_mode}**\n\n"
+        f"- **Profit Calculation:** Please ensure the `Discount` (or `Wrong_Defective_Price` for Meesho) column is filled. The `Target_Profit` column will be ignored.\n"
+        f"- **Target Discount:** Please ensure the `Target_Profit` column is filled. The `Discount` and `Wrong_Defective_Price` columns will be ignored."
+    )
 
     # --- (NEW) Columns for Download Buttons ---
     col_template, col_rates = st.columns(2)
@@ -1113,11 +1167,11 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3)",
+            label="⬇️ Download Excel Template (v3.1)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.1.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            help="Download this template and fill in your product details.",
+            help="Download this template and fill in your product details. (Now includes Target_Profit column)",
             use_container_width=True
         )
         
@@ -1150,16 +1204,17 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             # --- Check for new Myntra columns ---
             required_cols = ['SKU', 'MRP', 'Discount', 'Product_Cost', 'Platform']
             optional_cols = [
+                'Target_Profit', # (NEW)
                 'Weight_in_KG', 'Shipping_Zone', 'Jiomart_Category', 'Jiomart_Benefit_Rate',
                 'Wrong_Defective_Price', 'Meesho_Charge_Rate', 
                 'Apply_Royalty', # Old royalty
                 'Myntra_New_Brand', 'Myntra_New_Category', 'Myntra_New_Gender', 'Apply_Kuchipoo_Royalty' # New Myntra
             ]
             
-            for col in required_cols:
-                if col not in input_df.columns:
-                    st.error(f"Missing required column: **{col}**. Please use the downloaded template.")
-                    st.stop()
+            missing_req_cols = [col for col in required_cols if col not in input_df.columns]
+            if missing_req_cols:
+                st.error(f"Missing required column(s): **{', '.join(missing_req_cols)}**. Please use the downloaded template.")
+                st.stop()
             
             for col in optional_cols:
                 if col not in input_df.columns:
@@ -1170,11 +1225,17 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             if input_df.empty:
                 st.warning("The uploaded file is empty.")
                 st.stop()
+            
+            # --- (NEW) Check for Target_Profit column if in Target Discount mode ---
+            if bulk_calc_mode == 'Target Discount' and 'Target_Profit' not in input_df.columns:
+                st.error("Missing required column for this mode: **Target_Profit**. Please download the new template and fill this column.")
+                st.stop()
 
-            st.success(f"Successfully loaded {len(input_df)} product data from **{uploaded_file.name}**. Starting processing now...")
+
+            st.success(f"Successfully loaded {len(input_df)} product data from **{uploaded_file.name}**. Starting processing in **{bulk_calc_mode}** mode...")
 
             # Process the data
-            output_df = bulk_process_data(input_df)
+            output_df = bulk_process_data(input_df, bulk_calc_mode) # (NEW) Pass the mode
 
             st.divider()
             st.markdown("### ✅ Calculation Results")
@@ -1188,6 +1249,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             # Reorder columns
             display_columns = [
                 'ID', 'SKU', 'Platform', 'MRP', 'Discount', 'Sale_Price', 'Product_Cost',
+                'Target_Profit_In', # (NEW)
                 'Royalty', 'Total_Platform_Fee', 'Fixed_Fee_Component',
                 'Jiomart_Benefit', 'TDS', 'TCS', 'Settled_Amount', 'Net_Profit', 'Margin_%'
             ]
@@ -1203,6 +1265,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Discount': "₹ {:,.2f}",
                 'Sale_Price': "₹ {:,.2f}",
                 'Product_Cost': "₹ {:,.2f}",
+                'Target_Profit_In': "₹ {:,.2f}", # (NEW)
                 'Royalty': "₹ {:,.2f}",
                 'Total_Platform_Fee': "₹ {:,.2f}",
                 'Fixed_Fee_Component': "₹ {:,.2f}",
@@ -1223,11 +1286,10 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             st.download_button(
                 label="⬇️ Download Results as Excel",
                 data=processed_data,
-                file_name='Vardhman_Ecom_Payout_Results.xlsx',
+                file_name=f"Vardhman_Ecom_Results_{bulk_calc_mode.replace(' ', '_')}.xlsx",
                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             )
 
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
-
