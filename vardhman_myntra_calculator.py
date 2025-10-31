@@ -589,8 +589,19 @@ def bulk_process_data(df, mode='Profit Calculation'):
 
     for index, row in df.iterrows():
         try:
+            # --- (NEW FIX) Check for essential values ---
+            if not pd.notna(row['MRP']) or pd.isna(row['MRP']) or not pd.notna(row['Product_Cost']) or pd.isna(row['Product_Cost']):
+                st.warning(f"Skipping row {index + 1} (SKU: {row.get('SKU', 'N/A')}): Missing required value for MRP or Product_Cost.")
+                results.append({
+                    'ID': index + 1,
+                    'SKU': row.get('SKU', 'N/A'),
+                    'Platform': row.get('Platform', 'N/A'),
+                    'Error': 'Missing MRP or Product_Cost'
+                })
+                continue # Skip to the next row
+
             # --- Prepare ALL inputs ---
-            mrp = float(row['MRP'])
+            mrp = float(row['MRP']) # This is where it was failing
             product_cost = float(row['Product_Cost'])
             platform = str(row['Platform']).strip()
             
@@ -709,7 +720,8 @@ def bulk_process_data(df, mode='Profit Calculation'):
                 'TCS': tcs,
                 'Settled_Amount': settled_amount,
                 'Net_Profit': net_profit,
-                'Margin_%': (net_profit / product_cost) * 100 if product_cost > 0 else 0.0
+                'Margin_%': (net_profit / product_cost) * 100 if product_cost > 0 else 0.0,
+                'Error': np.nan # (NEW) Add Error column as nan for successful rows
             }
             results.append(result_row)
 
@@ -722,7 +734,19 @@ def bulk_process_data(df, mode='Profit Calculation'):
                 'Error': str(e)
             })
 
-    return pd.DataFrame(results)
+    # --- (NEW) Return both dataframes ---
+    results_df = pd.DataFrame(results)
+    
+    # Filter for rows that do NOT have a value in the 'Error' column
+    successful_df = results_df[results_df['Error'].isna()].copy()
+    
+    selling_price_columns = ['SKU', 'Platform', 'MRP', 'Discount', 'Sale_Price', 'Net_Profit']
+    # Ensure columns exist before trying to select them
+    final_selling_price_cols = [col for col in selling_price_columns if col in successful_df.columns]
+    
+    selling_price_df = successful_df[final_selling_price_cols]
+    
+    return results_df, selling_price_df
 
 # --- (NEW) Helper functions for Commission Download ---
 def flatten_myntra_data():
@@ -1169,9 +1193,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.5)",
+            label="⬇️ Download Excel Template (v3.6)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.5.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.6.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
@@ -1233,8 +1257,8 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
 
             st.success(f"Successfully loaded {len(input_df)} product data from **{uploaded_file.name}**. Starting processing in **{bulk_calc_mode}** mode...")
 
-            # Process the data
-            output_df = bulk_process_data(input_df, bulk_calc_mode) # (NEW) Pass the mode
+            # --- (MODIFIED) Process data and get both dataframes ---
+            output_df, selling_price_output_df = bulk_process_data(input_df, bulk_calc_mode) # (NEW) Pass the mode
 
             st.divider()
             st.markdown("### ✅ Calculation Results")
@@ -1252,9 +1276,11 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Royalty', 'Total_Platform_Fee', 'Fixed_Fee_Component',
                 'Jiomart_Benefit', 'TDS', 'TCS', 'Settled_Amount', 'Net_Profit', 'Margin_%'
             ]
-            display_columns = [col for col in display_columns if col in output_df.columns]
+            # --- (FIX) Add Error column to display ---
             if 'Error' in output_df.columns:
                 display_columns.append('Error')
+            
+            display_columns = [col for col in display_columns if col in output_df.columns]
             
             output_df_display = output_df[display_columns]
 
@@ -1276,18 +1302,46 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Margin_%': "{:,.2f}%"
             }), use_container_width=True)
 
-            # Download Results Button
-            output_excel = BytesIO()
-            with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
-                output_df_display.to_excel(writer, index=False, sheet_name='Results')
-            processed_data = output_excel.getvalue()
+            # --- (NEW) Download Buttons in Columns ---
+            col_download1, col_download2 = st.columns(2)
 
-            st.download_button(
-                label="⬇️ Download Results as Excel",
-                data=processed_data,
-                file_name=f"Vardhman_Ecom_Results_{bulk_calc_mode.replace(' ', '_')}.xlsx",
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
+            with col_download1:
+                # Existing Download Results Button
+                output_excel = BytesIO()
+                with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
+                    output_df_display.to_excel(writer, index=False, sheet_name='Results')
+                processed_data = output_excel.getvalue()
+
+                st.download_button(
+                    label="⬇️ Download Full Results (with Errors)",
+                    data=processed_data,
+                    file_name=f"Vardhman_Ecom_Full_Results_{bulk_calc_mode.replace(' ', '_')}.xlsx",
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    use_container_width=True
+                )
+            
+            with col_download2:
+                # New Selling Price Download Button
+                output_selling_price_excel = BytesIO()
+                with pd.ExcelWriter(output_selling_price_excel, engine='xlsxwriter') as writer:
+                    selling_price_output_df.to_excel(writer, index=False, sheet_name='Selling_Prices')
+                    # Add formatting
+                    workbook = writer.book
+                    worksheet = writer.sheets['Selling_Prices']
+                    money_format = workbook.add_format({'num_format': '₹ {:,.2f}'})
+                    # Format: C=MRP, D=Discount, E=Sale_Price, F=Net_Profit
+                    worksheet.set_column('C:F', 12, money_format) 
+                    worksheet.autofit()
+                processed_data_selling_price = output_selling_price_excel.getvalue()
+
+                st.download_button(
+                    label="✅ Download Successful Rows (Selling Price)",
+                    data=processed_data_selling_price,
+                    file_name=f"Vardhman_Ecom_Selling_Prices_{bulk_calc_mode.replace(' ', '_')}.xlsx",
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    use_container_width=True,
+                    help="Downloads only the successfully calculated rows with their selling prices."
+                )
 
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
