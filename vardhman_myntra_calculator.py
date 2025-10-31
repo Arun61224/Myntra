@@ -857,8 +857,8 @@ def get_excel_template():
     worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) 
     worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
     worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
-    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders})
-    workssheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) 
+    worksheet.data_validation('Q2:Q100', {'validate': 'list',D'source': myntra_genders})
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # (FIX v4.0) Typo corrected 
 
     writer.close()
     processed_data = output.getvalue()
@@ -1212,9 +1212,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.9)",
+            label="⬇️ Download Excel Template (v4.0)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.9.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.0.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
