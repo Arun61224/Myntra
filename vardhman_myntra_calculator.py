@@ -805,17 +805,102 @@ def get_excel_template():
     myntra_categories_list = ','.join(all_myntra_categories)
     myntra_genders = 'Boys,Girls'
     
-    # Note: Column letters shift after adding 'Target_Profit' at E and 'Marketing_Fee_Rate' at M
+    # --- (FIXED) Data validation column mapping ---
     worksheet.data_validation('F2:F100', {'validate': 'list', 'source': platforms})
-    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': zones})
-    worksheet.data_validation('J2:J100', {'validate': 'list', 'source': jio_categories})
-    worksheet.data_validation('K2:K100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) 
+    worksheet.data_validation('H2:H100', {'validate': 'list', 'source': zones}) # Was I
+    worksheet.data_validation('I2:I100', {'validate': 'list', 'source': jio_categories}) # Was J
+    worksheet.data_validation('J2:J100', {'validate': 'decimal', 'criteria': 'between', 'minimum': 0.0, 'maximum': 0.5}) # Was K
     # M is new Marketing_Fee_Rate, no validation needed
-    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) # Was M
-    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands}) # Was N
-    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list}) # Was O
-    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders}) # Was P
-    worksKeyError:
+    worksheet.data_validation('N2:N100', {'validate': 'list', 'source': royalty_yes_no}) 
+    worksheet.data_validation('O2:O100', {'validate': 'list', 'source': myntra_brands})
+    worksheet.data_validation('P2:P100', {'validate': 'list', 'source': myntra_categories_list})
+    worksheet.data_validation('Q2:Q100', {'validate': 'list', 'source': myntra_genders})
+    worksheet.data_validation('R2:R100', {'validate': 'list', 'source': royalty_yes_no}) # This line was missing/broken
+
+    writer.close()
+    processed_data = output.getvalue()
+    return processed_data
+
+# ==============================================================================
+# --- (MODIFIED) STREAMLIT APP STRUCTURE ---
+# ==============================================================================
+
+st.title("🛍️ " + FULL_TITLE)
+st.markdown("###### **1. Input and Configuration**")
+
+# --- MODE SELECTION ---
+col_calc_mode, col_sub_mode_placeholder = st.columns([1, 1])
+with col_calc_mode:
+    calculation_mode = st.radio(
+        "Select Calculation Mode:",
+        ('A. Single Product Calculation', 'B. Bulk Processing (Excel)'),
+        index=0, label_visibility="visible"
+    )
+
+# --- Sub-Mode Placement ---
+if calculation_mode == 'A. Single Product Calculation':
+    with col_sub_mode_placeholder:
+        st.markdown("Select Sub-Mode:")
+        single_calc_mode = st.radio(
+            "", ('Profit Calculation', 'Target Discount'),
+            index=0, label_visibility="collapsed", horizontal=True
+        )
+else:
+    single_calc_mode = 'Profit Calculation' # Default for bulk
+    with col_sub_mode_placeholder:
+        st.write("") # Keep space
+st.divider()
+
+# ==============================================================================
+# --- (MODIFIED) SINGLE PRODUCT CALCULATION UI ---
+# ==============================================================================
+if calculation_mode == 'A. Single Product Calculation':
+
+    platform_selector = st.radio(
+        "Select Platform:",
+        ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
+        index=0, horizontal=True
+    )
+    st.markdown("##### **Configuration Settings**")
+    
+    # --- (NEW) Myntra v3 Inputs ---
+    myntra_new_brand = None
+    myntra_new_category = None
+    myntra_new_gender = None
+    apply_kuchipoo_royalty = 'No'
+    
+    # --- (EXISTING) Other Platform Inputs ---
+    jiomart_category = None
+    jiomart_benefit_rate = 0.0
+    weight_in_kg = 0.0
+    shipping_zone = None
+    meesho_charge_rate = 0.0
+    apply_royalty = 'No' # For old platforms
+    
+    
+    if platform_selector == 'Myntra':
+        st.info("Myntra calculation is based on new v3 rules (Slab-based Fixed Fee & Commission).")
+        
+        # --- New Cascading Dropdowns ---
+        col_brand, col_cat, col_gen = st.columns(3)
+        
+        # 1. Brand
+        brand_options = list(MYNTRA_COMMISSION_DATA.keys())
+        myntra_new_brand = col_brand.selectbox("Select Brand:", brand_options, index=0, key="myntra_brand_v3")
+        
+        # 2. Category
+        try:
+            category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
+            myntra_new_category = col_cat.selectbox("Select Category:", category_options, index=0, key="myntra_cat_v3")
+        except KeyError:
+            st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
+            st.stop()
+            
+        # 3. Gender
+        try:
+            gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
+            myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, index=0, key="myntra_gen_v3")
+        except KeyError:
              st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
              st.stop()
         
@@ -1084,9 +1169,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v3.4)",
+            label="⬇️ Download Excel Template (v3.5)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v3.4.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v3.5.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template and fill in your product details. (xlsx only)",
             use_container_width=True
