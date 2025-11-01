@@ -189,22 +189,22 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
 def calculate_myntra_new_fixed_fee(brand, sale_price):
     final_fee = 0.0 # Initialize
     
-    # --- (MODIFIED) USER REQUESTED TO REMOVE GT CHARGE ENTIRELY ---
-    # All logic is removed, it will always return 0.0
+    # --- (MODIFIED) USER REQUESTED TO RE-ADD GT CHARGE ---
+    # Logic ko waapis uncomment kar diya hai
     
-    # if brand == "KUCHIPOO":
-    #     final_fee = 0.0 # Kuchipoo remains 0
-    # else: # YK, YK Disney, YK Marvel
-    #     if sale_price <= 500:
-    #         final_fee = 50.0
-    #     elif sale_price <= 1000:
-    #         final_fee = 80.0
-    #     elif sale_price <= 2000:
-    #         final_fee = 145.0
-    #     else: # 2000+
-    #         final_fee = 175.0
+    if brand == "KUCHIPOO":
+        final_fee = 0.0 # Kuchipoo remains 0
+    else: # YK, YK Disney, YK Marvel
+        if sale_price <= 500:
+            final_fee = 50.0
+        elif sale_price <= 1000:
+            final_fee = 80.0
+        elif sale_price <= 2000:
+            final_fee = 145.0
+        else: # 2000+
+            final_fee = 175.0
             
-    return final_fee # This will now always return 0.0
+    return final_fee # This will now return the correct fee
 
 # --- (NEW) Helper function to get Myntra Royalty ---
 def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag):
@@ -1157,22 +1157,20 @@ if calculation_mode == 'A. Single Product Calculation':
                         st.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
                         
                     else:
-                        # --- (MODIFIED) Myntra ke liye GT Charge label ko hide karein ---
-                        if platform_selector != 'Myntra':
-                            col4_l, col5_l = st.columns(2)
-                            fixed_charge_label = "Fixed/Shipping Charge"
-                            if platform_selector == 'Ajio':
-                                fixed_charge_label = "SCM Charges (Incl. GST)"
-                            elif platform_selector == 'Snapdeal':
-                                fixed_charge_label = "RO Fee (Incl. Tax)"
-                            elif platform_selector == 'FirstCry':
-                                fixed_charge_label = "Fixed Charges"
-                                
-                            col4_l.metric(label=fixed_charge_label, value=f"₹ {gt_charge:,.2f}")
-                            col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
-                        else:
-                            # If Myntra, GT charge label and value are completely hidden
-                            st.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                        # --- (MODIFIED) Myntra ke liye GT Charge label waapis show kar diya ---
+                        col4_l, col5_l = st.columns(2)
+                        fixed_charge_label = "Fixed/Shipping Charge"
+                        if platform_selector == 'Myntra':
+                            fixed_charge_label = "GT Charge (Incl. GST)"
+                        elif platform_selector == 'Ajio':
+                            fixed_charge_label = "SCM Charges (Incl. GST)"
+                        elif platform_selector == 'Snapdeal':
+                            fixed_charge_label = "RO Fee (Incl. Tax)"
+                        elif platform_selector == 'FirstCry':
+                            fixed_charge_label = "Fixed Charges"
+                            
+                        col4_l.metric(label=fixed_charge_label, value=f"₹ {gt_charge:,.2f}")
+                        col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
 
 
             # =========== RIGHT COLUMN: Deductions and Final Payout ===========
@@ -1440,4 +1438,5 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
 
