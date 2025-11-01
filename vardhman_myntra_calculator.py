@@ -193,22 +193,24 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
         return 0.0 # Fail safe
 
 # --- (NEW) Helper function to get Myntra Fixed Fee (incl. GST) ---
+# --- (UPDATED BLOCK v4.5) ---
 def calculate_myntra_new_fixed_fee(brand, sale_price):
     GST_RATE_FEES = 0.18
     base_fee = 0.0
     
-    if brand == "KUCHIPOO":
-        base_fee = 0.0
-    else: # YK, YK Disney, YK Marvel
-        if sale_price <= 1000:
-            base_fee = 27.0
-        elif sale_price <= 2000:
-            base_fee = 45.0
-        else: # 2000+
-            base_fee = 61.0
+    # NEW LOGIC (v4.5): All Myntra brands (Kuchipoo, YK, YK Disney, YK Marvel) use the same GT charges.
+    if sale_price <= 500:
+        base_fee = 50.0
+    elif sale_price <= 1000:
+        base_fee = 80.0
+    elif sale_price <= 2000:
+        base_fee = 145.0
+    else: # 2000+
+        base_fee = 175.0
             
     final_fee = base_fee * (1 + GST_RATE_FEES)
     return final_fee
+# --- (END UPDATED BLOCK v4.5) ---
 
 # --- (NEW) Helper function to get Myntra Royalty ---
 def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag):
@@ -1243,9 +1245,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v4.3)",
+            label="⬇️ Download Excel Template (v4.5)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v4.3.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.5.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template (with Instructions sheet) and fill in your product details.",
             use_container_width=True
@@ -1423,3 +1425,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
