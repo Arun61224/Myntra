@@ -986,6 +986,7 @@ with sku_col_2:
             st.session_state.pop('fetched_style_name', None)
             st.session_state.pop('sku_message', None)
             st.session_state.pop('sku_input_key', None) # Clear the text input box itself
+            st.session_state.pop('sku_select_key', None) # (NEW) Clear the select box key
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
@@ -1047,9 +1048,11 @@ if calculation_mode == 'A. Single Product Calculation':
 
     # --- (NEW) SKU Lookup Function ---
     def lookup_sku():
-        sku = st.session_state.get('sku_input_key', '').strip()
-        if not sku:
-            # Clear session state if input is empty
+        # (MODIFICATION) Read from select_key
+        sku = st.session_state.get('sku_select_key', '').strip() 
+        
+        if not sku or sku == "Select SKU...": # (MODIFICATION) Check for placeholder
+            # Clear session state if input is empty or placeholder
             st.session_state.fetched_brand = None
             st.session_state.fetched_category = None
             st.session_state.fetched_gender = None
@@ -1078,12 +1081,17 @@ if calculation_mode == 'A. Single Product Calculation':
     
     # --- (NEW) SKU Lookup UI ---
     if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
-        st.text_input(
-            "**Fetch by SKU:**", 
-            key="sku_input_key", 
+        # --- (MODIFICATION) Changed from text_input to selectbox ---
+        sku_options = ["Select SKU..."] + st.session_state.sku_df['seller sku code'].unique().tolist()
+        st.selectbox(
+            "**Fetch by SKU:**",
+            options=sku_options,
+            key="sku_select_key", # (MODIFICATION) New key
             on_change=lookup_sku,
-            help="Enter Seller SKU Code and press Enter to fetch details."
+            help="Select a Seller SKU Code to fetch details."
         )
+        # --- End of Modification ---
+        
         # Display the message (success or error)
         if 'sku_message' in st.session_state and st.session_state.sku_message:
             if "✅" in st.session_state.sku_message:
@@ -1666,4 +1674,6 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
+"
 
