@@ -184,10 +184,9 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
     except Exception:
         return 0.0 # Fail safe
 
-# --- (NEW) Helper function to get Myntra Fixed Fee (incl. GST) ---
-# --- (MODIFIED as per user request: New Slabs, Assumed GST-Inclusive) ---
+# --- (MODIFIED) Helper function to get Myntra Fixed Fee (incl. GST) ---
+# Slabs updated as per user request (50, 80, 145, 175)
 def calculate_myntra_new_fixed_fee(brand, sale_price):
-    # GST_RATE_FEES = 0.18 # Removed, as new values are final
     final_fee = 0.0 # Initialize
     
     if brand == "KUCHIPOO":
@@ -202,7 +201,6 @@ def calculate_myntra_new_fixed_fee(brand, sale_price):
         else: # 2000+
             final_fee = 175.0
             
-    # final_fee = base_fee * (1 + GST_RATE_FEES) # Removed this calculation
     return final_fee
 
 # --- (NEW) Helper function to get Myntra Royalty ---
@@ -293,7 +291,7 @@ def calculate_taxable_amount_value(customer_paid_amount):
     return taxable_amount, tax_rate
 
 # ==============================================================================
-# --- (HEAVILY MODIFIED) CORE CALCULATION LOGIC ---
+# --- (MODIFIED) CORE CALCULATION LOGIC ---
 # ==============================================================================
 def perform_calculations(mrp, discount, 
                          # Common Params
@@ -311,7 +309,8 @@ def perform_calculations(mrp, discount,
     # Initialize common variables
     gt_charge = 0.0 # This will store the FINAL Fixed Fee (incl. GST)
     royalty_fee = 0.0
-    marketing_fee_base = 0.0 # *** (NEW) MYNTRA KE LIYE YEH AB "FIXED FEE 2" HOGA ***
+    # --- (MODIFIED) marketing_fee_base (Doosra fixed fee) ab 0.0 hi rahega ---
+    marketing_fee_base = 0.0 
     final_commission = 0.0
     commission_rate = 0.0
     
@@ -361,21 +360,19 @@ def perform_calculations(mrp, discount,
         customer_paid_amount = sale_price
 
         if platform == 'Myntra':
-            # --- (NEW) MYNTRA v3 LOGIC ---
+            # --- (MODIFIED) MYNTRA v3 LOGIC (Single Fixed Fee) ---
             
             # 1. Calculate "GT Charge" (Fee 1)
-            # THIS FUNCTION IS NOW MODIFIED WITH NEW SLABS
+            # Yeh function ab naye slabs (50, 80, 145, 175) use kar raha hai
             gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
             total_fixed_charge = gt_charge # For display in box 2
             
-            # *** (NEW) Calculate "Fixed Fee" (Fee 2) as per your request ***
-            # Using marketing_fee_base variable to store this second fee
-            # THIS FUNCTION IS ALSO MODIFIED WITH NEW SLABS
-            marketing_fee_base = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
+            # --- (DELETED) Doosra fixed fee (marketing_fee_base) ab calculate nahi hoga ---
+            # marketing_fee_base = calculate_myntra_new_fixed_fee(...)
             
             # 2. Calculate "Seller Price" (Base for Commission)
-            # *** (MODIFIED) Seller Price se dono fees minus hongi ***
-            seller_price = sale_price - gt_charge - marketing_fee_base
+            # --- (MODIFIED) Seller Price se ab sirf ek hi fee minus hogi ---
+            seller_price = sale_price - gt_charge
             
             # 3. Get Commission Rate based on Seller Price
             commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price)
@@ -388,8 +385,7 @@ def perform_calculations(mrp, discount,
             # 5. Calculate New Royalty (Base is Sale Price)
             royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, sale_price, apply_kuchipoo_royalty)
             
-            # 6. Marketing fee 0 hai (original variable)
-            # marketing_fee_base is now used for Fixed Fee 2
+            # 6. marketing_fee_base 0.0 hi rahega
             
             
         elif platform == 'FirstCry':
@@ -470,11 +466,12 @@ def perform_calculations(mrp, discount,
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction + royalty_fee # Marketing fee is 0
     elif platform == 'Myntra':
-         # *** (MODIFIED) Dono fees add kar di hain ***
-         total_deductions = final_commission + royalty_fee + gt_charge + marketing_fee_base
+         # --- (MODIFIED) Doosra fixed fee (marketing_fee_base) hata diya gaya ---
+         total_deductions = final_commission + royalty_fee + gt_charge
     elif platform == 'Meesho':
         total_deductions = final_commission # Royalty, GT, Marketing are 0
     else: # Ajio, FirstCry, Snapdeal
+        # marketing_fee_base yahaan 0.0 hi hai
         total_deductions = final_commission + royalty_fee + marketing_fee_base + gt_charge
         
     # FINAL SETTLEMENT
@@ -482,7 +479,7 @@ def perform_calculations(mrp, discount,
     net_profit = settled_amount - product_cost
 
     return (sale_price, total_fixed_charge, customer_paid_amount, royalty_fee,
-            marketing_fee_base, 0.0, # Marketing fee_base (Fee 2) | marketing rate is 0
+            marketing_fee_base, 0.0, # Marketing fee_base (Fee 2) - ab 0.0 hai
             final_commission, 
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, 
@@ -725,11 +722,8 @@ def bulk_process_data(df, mode='Profit Calculation'):
             if platform == 'Jiomart':
                 display_commission_fee = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
             elif platform in ['Ajio', 'Snapdeal', 'Myntra']:
-                # *** (MODIFIED) Myntra total fee now includes BOTH fixed fees ***
-                if platform == 'Myntra':
-                    display_commission_fee = final_commission + gt_charge + marketing_fee_base
-                else:
-                    display_commission_fee = final_commission + gt_charge 
+                # --- (MODIFIED) Myntra total fee ab doosra fixed fee add nahi karega ---
+                display_commission_fee = final_commission + gt_charge 
             
             # Store result
             result_row = {
@@ -743,8 +737,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
                 'Product_Cost': product_cost,
                 'Royalty': royalty_fee,
                 'Platform_Fee_Incl_GST': display_commission_fee, 
-                # *** (MODIFIED) Renamed Marketing_Fee column ***
-                'Myntra_Fixed_Fee_2': marketing_fee_base if platform == 'Myntra' else 0.0,
+                # --- (DELETED) 'Myntra_Fixed_Fee_2' column hata diya ---
                 'Fixed/Shipping_Charge(Internal)': fixed_shipping_charge,
                 'Jiomart_Benefit': abs(jiomart_benefit_amount) if platform == 'Jiomart' else 0.0,
                 'TDS': tds,
@@ -1176,7 +1169,8 @@ if calculation_mode == 'A. Single Product Calculation':
             # =========== RIGHT COLUMN: Deductions and Final Payout ===========
             with col_right:
                 st.markdown("###### **3. Deductions (Charges)**")
-                col1_r, col2_r, col3_r = st.columns(3)
+                # --- (MODIFIED) 3 columns se 2 kar diye ---
+                col1_r, col2_r = st.columns(2)
 
                 # Commission/Platform Fee
                 platform_fee_label = "Platform Fee (Incl. GST)"
@@ -1198,13 +1192,10 @@ if calculation_mode == 'A. Single Product Calculation':
 
                 col1_r.metric(label=platform_fee_label, value=f"₹ {platform_fee_value:,.2f}")
                 
-                # *** (MODIFIED) Label for the second fee ***
-                fee_2_label = "Marketing Fee"
-                if platform_selector == 'Myntra':
-                    fee_2_label = "Fixed Fee (Incl. GST)"
+                # --- (DELETED) Doosra fixed fee metric hata diya ---
                 
-                col2_r.metric(label=fee_2_label, value=f"₹ {marketing_fee_base:,.2f}")
-                col3_r.metric(label="Royalty Fee", value=f"₹ {royalty_fee:,.2f}")
+                # --- (MODIFIED) Royalty metric ko col2_r mein move kar diya ---
+                col2_r.metric(label="Royalty Fee", value=f"₹ {royalty_fee:,.2f}")
 
                 col4_r, col5_r, col6_r = st.columns(3)
                 col4_r.metric(label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)", value=f"₹ {taxable_amount_value:,.2f}")
@@ -1257,9 +1248,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v4.2)",
+            label="⬇️ Download Excel Template (v4.4)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v4.2.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.4.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template (with Instructions sheet) and fill in your product details.",
             use_container_width=True
@@ -1365,7 +1356,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'ID', 'SKU', 'Platform', 'MRP', 'Discount', 'Sale_Price', 'Product_Cost',
                 'Target_Profit_In', # (NEW)
                 'Royalty', 'Total_Platform_Fee', 
-                'Myntra_Fixed_Fee_2', # *** (NEW) Added new fee column ***
+                # --- (DELETED) 'Myntra_Fixed_Fee_2' column hata diya ---
                 'Fixed_Fee_Component',
                 'Jiomart_Benefit', 'TDS', 'TCS', 'Settled_Amount', 'Net_Profit', 'Margin_%'
             ]
@@ -1386,7 +1377,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Target_Profit_In': "₹ {:,.2f}", # (NEW)
                 'Royalty': "₹ {:,.2f}",
                 'Total_Platform_Fee': "₹ {:,.2f}",
-                'Myntra_Fixed_Fee_2': "₹ {:,.2f}", # *** (NEW) Added new fee format ***
+                # --- (DELETED) 'Myntra_Fixed_Fee_2' formatting hata diya ---
                 'Fixed_Fee_Component': "₹ {:,.2f}",
                 'Jiomart_Benefit': "₹ {:,.2f}", 
                 'TDS': "₹ {:,.2f}",
