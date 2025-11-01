@@ -193,10 +193,11 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
         return 0.0 # Fail safe
 
 # --- (NEW) Helper function to get Myntra Fixed Fee (incl. GST) ---
-# --- (UPDATED BLOCK v4.6) ---
+# --- (UPDATED BLOCK v4.7) ---
 def calculate_myntra_new_fixed_fee(brand, sale_price):
     GST_RATE_FEES = 0.18
     base_fee = 0.0
+    final_fee = 0.0 # Initialize final_fee
     
     if brand == "KUCHIPOO":
         if sale_price <= 500:
@@ -207,18 +208,20 @@ def calculate_myntra_new_fixed_fee(brand, sale_price):
             base_fee = 145.0
         else: # 2000+
             base_fee = 175.0
+        final_fee = base_fee * (1 + GST_RATE_FEES) # Calculate final fee for Kuchipoo
+            
     elif brand in ["YK", "YK Disney", "YK Marvel"]:
+        # NOTE: For these brands, the fee is the FINAL GST-INCLUSIVE amount
         if sale_price <= 1000:
-            base_fee = 27.0
+            final_fee = 27.0
         else: # 1000+
-            base_fee = 45.0
+            final_fee = 45.0
     
     # Note: Agar koi aur Myntra brand add hota hai jo is logic mein nahi hai,
-    # toh uska base_fee 0.0 rahega.
+    # toh uska final_fee 0.0 rahega.
             
-    final_fee = base_fee * (1 + GST_RATE_FEES)
     return final_fee
-# --- (END UPDATED BLOCK v4.6) ---
+# --- (END UPDATED BLOCK v4.7) ---
 
 # --- (NEW) Helper function to get Myntra Royalty ---
 def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag):
@@ -1253,9 +1256,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         # Template Download Button
         excel_data = get_excel_template()
         st.download_button(
-            label="⬇️ Download Excel Template (v4.6)",
+            label="⬇️ Download Excel Template (v4.7)",
             data=excel_data,
-            file_name='Vardhman_Ecom_Bulk_Template_v4.6.xlsx',
+            file_name='Vardhman_Ecom_Bulk_Template_v4.7.xlsx',
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             help="Download this template (with Instructions sheet) and fill in your product details.",
             use_container_width=True
@@ -1433,5 +1436,6 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
 
 
