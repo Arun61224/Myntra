@@ -185,21 +185,24 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
         return 0.0 # Fail safe
 
 # --- (NEW) Helper function to get Myntra Fixed Fee (incl. GST) ---
+# --- (MODIFIED as per user request: New Slabs, Assumed GST-Inclusive) ---
 def calculate_myntra_new_fixed_fee(brand, sale_price):
-    GST_RATE_FEES = 0.18
-    base_fee = 0.0
+    # GST_RATE_FEES = 0.18 # Removed, as new values are final
+    final_fee = 0.0 # Initialize
     
     if brand == "KUCHIPOO":
-        base_fee = 0.0
+        final_fee = 0.0 # Kuchipoo remains 0
     else: # YK, YK Disney, YK Marvel
-        if sale_price <= 1000:
-            base_fee = 27.0
+        if sale_price <= 500:
+            final_fee = 50.0
+        elif sale_price <= 1000:
+            final_fee = 80.0
         elif sale_price <= 2000:
-            base_fee = 45.0
+            final_fee = 145.0
         else: # 2000+
-            base_fee = 61.0
+            final_fee = 175.0
             
-    final_fee = base_fee * (1 + GST_RATE_FEES)
+    # final_fee = base_fee * (1 + GST_RATE_FEES) # Removed this calculation
     return final_fee
 
 # --- (NEW) Helper function to get Myntra Royalty ---
@@ -361,11 +364,13 @@ def perform_calculations(mrp, discount,
             # --- (NEW) MYNTRA v3 LOGIC ---
             
             # 1. Calculate "GT Charge" (Fee 1)
+            # THIS FUNCTION IS NOW MODIFIED WITH NEW SLABS
             gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
             total_fixed_charge = gt_charge # For display in box 2
             
             # *** (NEW) Calculate "Fixed Fee" (Fee 2) as per your request ***
             # Using marketing_fee_base variable to store this second fee
+            # THIS FUNCTION IS ALSO MODIFIED WITH NEW SLABS
             marketing_fee_base = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
             
             # 2. Calculate "Seller Price" (Base for Commission)
