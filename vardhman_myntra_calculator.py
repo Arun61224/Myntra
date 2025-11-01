@@ -293,22 +293,22 @@ def calculate_taxable_amount_value(customer_paid_amount):
 # --- (HEAVILY MODIFIED) CORE CALCULATION LOGIC ---
 # ==============================================================================
 def perform_calculations(mrp, discount, 
-                             # Common Params
-                             product_cost, platform,
-                             # Myntra v3 Params
-                             myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
-                             apply_kuchipoo_royalty='No',
-                             # Jiomart Params
-                             weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
-                             # Meesho Params
-                             meesho_charge_rate=0.0, wrong_defective_price=None,
-                             # --- (DEPRECATED PARAMS - kept for safety, but not used by Myntra) ---
-                             apply_royalty='No', marketing_fee_rate=0.0):
+                         # Common Params
+                         product_cost, platform,
+                         # Myntra v3 Params
+                         myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
+                         apply_kuchipoo_royalty='No',
+                         # Jiomart Params
+                         weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
+                         # Meesho Params
+                         meesho_charge_rate=0.0, wrong_defective_price=None,
+                         # --- (DEPRECATED PARAMS - kept for safety, but not used by Myntra) ---
+                         apply_royalty='No', marketing_fee_rate=0.0):
     
     # Initialize common variables
     gt_charge = 0.0 # This will store the FINAL Fixed Fee (incl. GST)
     royalty_fee = 0.0
-    marketing_fee_base = 0.0 # Myntra v3 mein use nahi hoga
+    marketing_fee_base = 0.0 # *** (NEW) MYNTRA KE LIYE YEH AB "FIXED FEE 2" HOGA ***
     final_commission = 0.0
     commission_rate = 0.0
     
@@ -360,13 +360,17 @@ def perform_calculations(mrp, discount,
         if platform == 'Myntra':
             # --- (NEW) MYNTRA v3 LOGIC ---
             
-            # 1. Calculate New Fixed Fee (GT Charge)
-            # gt_charge mein FINAL fee (incl. GST) store hogi
+            # 1. Calculate "GT Charge" (Fee 1)
             gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
-            total_fixed_charge = gt_charge # For display
+            total_fixed_charge = gt_charge # For display in box 2
+            
+            # *** (NEW) Calculate "Fixed Fee" (Fee 2) as per your request ***
+            # Using marketing_fee_base variable to store this second fee
+            marketing_fee_base = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price)
             
             # 2. Calculate "Seller Price" (Base for Commission)
-            seller_price = sale_price - gt_charge
+            # *** (MODIFIED) Seller Price se dono fees minus hongi ***
+            seller_price = sale_price - gt_charge - marketing_fee_base
             
             # 3. Get Commission Rate based on Seller Price
             commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price)
@@ -379,8 +383,8 @@ def perform_calculations(mrp, discount,
             # 5. Calculate New Royalty (Base is Sale Price)
             royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, sale_price, apply_kuchipoo_royalty)
             
-            # 6. Marketing fee 0 hai (as per new rules)
-            marketing_fee_base = 0.0
+            # 6. Marketing fee 0 hai (original variable)
+            # marketing_fee_base is now used for Fixed Fee 2
             
             
         elif platform == 'FirstCry':
@@ -461,7 +465,8 @@ def perform_calculations(mrp, discount,
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction + royalty_fee # Marketing fee is 0
     elif platform == 'Myntra':
-         total_deductions = final_commission + royalty_fee + gt_charge # gt_charge is new fixed fee
+         # *** (MODIFIED) Dono fees add kar di hain ***
+         total_deductions = final_commission + royalty_fee + gt_charge + marketing_fee_base
     elif platform == 'Meesho':
         total_deductions = final_commission # Royalty, GT, Marketing are 0
     else: # Ajio, FirstCry, Snapdeal
@@ -472,7 +477,7 @@ def perform_calculations(mrp, discount,
     net_profit = settled_amount - product_cost
 
     return (sale_price, total_fixed_charge, customer_paid_amount, royalty_fee,
-            marketing_fee_base, 0.0, # Marketing rate is 0 for Myntra v3
+            marketing_fee_base, 0.0, # Marketing fee_base (Fee 2) | marketing rate is 0
             final_commission, 
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, 
@@ -485,25 +490,25 @@ def perform_calculations(mrp, discount,
 
 # --- (MODIFIED) Target Discount Function ---
 def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
-                                        # Myntra v3
-                                        myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
-                                        apply_kuchipoo_royalty='No',
-                                        # Jiomart
-                                        weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
-                                        # Meesho
-                                        meesho_charge_rate=0.0, wrong_defective_price=None, # WDP is NOT used for finding, only for final calc
-                                        # Deprecated
-                                        apply_royalty='No'):
+                                    # Myntra v3
+                                    myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
+                                    apply_kuchipoo_royalty='No',
+                                    # Jiomart
+                                    weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
+                                    # Meesho
+                                    meesho_charge_rate=0.0, wrong_defective_price=None, # WDP is NOT used for finding, only for final calc
+                                    # Deprecated
+                                    apply_royalty='No'):
     """Finds the maximum discount allowed (in 1.0 steps) to achieve at least the target profit."""
 
     # Helper function to get the 11th return value (net_profit)
     def get_profit(disc, wdp=None):
         results = perform_calculations(mrp, disc, product_cost, platform,
-                                           myntra_new_brand, myntra_new_category, myntra_new_gender,
-                                           apply_kuchipoo_royalty,
-                                           weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
-                                           meesho_charge_rate, wdp,
-                                           apply_royalty, 0.0) # Pass 0 for deprecated marketing fee
+                                       myntra_new_brand, myntra_new_category, myntra_new_gender,
+                                       apply_kuchipoo_royalty,
+                                       weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
+                                       meesho_charge_rate, wdp,
+                                       apply_royalty, 0.0) # Pass 0 for deprecated marketing fee
         return results[10]
 
     if platform == 'Meesho':
@@ -702,7 +707,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
                  weight_in_kg_bulk, shipping_zone_bulk, jiomart_category_bulk, jiomart_benefit_rate_bulk,
                  meesho_charge_rate_bulk, wdp_to_use,
                  apply_royalty_bulk, 0.0 # Pass deprecated params
-                )
+             )
             
             # Recalculate final discount for display (esp. for Meesho)
             final_discount_display = mrp - sale_price
@@ -715,7 +720,11 @@ def bulk_process_data(df, mode='Profit Calculation'):
             if platform == 'Jiomart':
                 display_commission_fee = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
             elif platform in ['Ajio', 'Snapdeal', 'Myntra']:
-                display_commission_fee = final_commission + gt_charge # Total deduction
+                # *** (MODIFIED) Myntra total fee now includes BOTH fixed fees ***
+                if platform == 'Myntra':
+                    display_commission_fee = final_commission + gt_charge + marketing_fee_base
+                else:
+                    display_commission_fee = final_commission + gt_charge 
             
             # Store result
             result_row = {
@@ -729,6 +738,8 @@ def bulk_process_data(df, mode='Profit Calculation'):
                 'Product_Cost': product_cost,
                 'Royalty': royalty_fee,
                 'Platform_Fee_Incl_GST': display_commission_fee, 
+                # *** (MODIFIED) Renamed Marketing_Fee column ***
+                'Myntra_Fixed_Fee_2': marketing_fee_base if platform == 'Myntra' else 0.0,
                 'Fixed/Shipping_Charge(Internal)': fixed_shipping_charge,
                 'Jiomart_Benefit': abs(jiomart_benefit_amount) if platform == 'Jiomart' else 0.0,
                 'TDS': tds,
@@ -1091,7 +1102,7 @@ if calculation_mode == 'A. Single Product Calculation':
                  weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
                  meesho_charge_rate, wrong_defective_price,
                  apply_royalty, 0.0 # Pass 0 for deprecated marketing fee
-                )
+             )
 
             # --- Result Metrics ---
             target_profit = product_margin_target_rs
@@ -1181,7 +1192,13 @@ if calculation_mode == 'A. Single Product Calculation':
                     platform_fee_label = "Commission (Incl. GST)"
 
                 col1_r.metric(label=platform_fee_label, value=f"₹ {platform_fee_value:,.2f}")
-                col2_r.metric(label="Marketing Fee", value=f"₹ {marketing_fee_base:,.2f}")
+                
+                # *** (MODIFIED) Label for the second fee ***
+                fee_2_label = "Marketing Fee"
+                if platform_selector == 'Myntra':
+                    fee_2_label = "Fixed Fee (Incl. GST)"
+                
+                col2_r.metric(label=fee_2_label, value=f"₹ {marketing_fee_base:,.2f}")
                 col3_r.metric(label="Royalty Fee", value=f"₹ {royalty_fee:,.2f}")
 
                 col4_r, col5_r, col6_r = st.columns(3)
@@ -1342,7 +1359,9 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             display_columns = [
                 'ID', 'SKU', 'Platform', 'MRP', 'Discount', 'Sale_Price', 'Product_Cost',
                 'Target_Profit_In', # (NEW)
-                'Royalty', 'Total_Platform_Fee', 'Fixed_Fee_Component',
+                'Royalty', 'Total_Platform_Fee', 
+                'Myntra_Fixed_Fee_2', # *** (NEW) Added new fee column ***
+                'Fixed_Fee_Component',
                 'Jiomart_Benefit', 'TDS', 'TCS', 'Settled_Amount', 'Net_Profit', 'Margin_%'
             ]
             # --- (FIX) Add Error column to display ---
@@ -1362,6 +1381,7 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
                 'Target_Profit_In': "₹ {:,.2f}", # (NEW)
                 'Royalty': "₹ {:,.2f}",
                 'Total_Platform_Fee': "₹ {:,.2f}",
+                'Myntra_Fixed_Fee_2': "₹ {:,.2f}", # *** (NEW) Added new fee format ***
                 'Fixed_Fee_Component': "₹ {:,.2f}",
                 'Jiomart_Benefit': "₹ {:,.2f}", 
                 'TDS': "₹ {:,.2f}",
@@ -1415,4 +1435,3 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
-
