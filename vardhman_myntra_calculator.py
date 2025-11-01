@@ -189,19 +189,22 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
 def calculate_myntra_new_fixed_fee(brand, sale_price):
     final_fee = 0.0 # Initialize
     
-    if brand == "KUCHIPOO":
-        final_fee = 0.0 # Kuchipoo remains 0
-    else: # YK, YK Disney, YK Marvel
-        if sale_price <= 500:
-            final_fee = 50.0
-        elif sale_price <= 1000:
-            final_fee = 80.0
-        elif sale_price <= 2000:
-            final_fee = 145.0
-        else: # 2000+
-            final_fee = 175.0
+    # --- (MODIFIED) USER REQUESTED TO REMOVE GT CHARGE ENTIRELY ---
+    # All logic is removed, it will always return 0.0
+    
+    # if brand == "KUCHIPOO":
+    #     final_fee = 0.0 # Kuchipoo remains 0
+    # else: # YK, YK Disney, YK Marvel
+    #     if sale_price <= 500:
+    #         final_fee = 50.0
+    #     elif sale_price <= 1000:
+    #         final_fee = 80.0
+    #     elif sale_price <= 2000:
+    #         final_fee = 145.0
+    #     else: # 2000+
+    #         final_fee = 175.0
             
-    return final_fee
+    return final_fee # This will now always return 0.0
 
 # --- (NEW) Helper function to get Myntra Royalty ---
 def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag):
@@ -1431,3 +1434,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
