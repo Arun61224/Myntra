@@ -121,7 +121,7 @@ MYNTRA_COMMISSION_DATA = {
         },
         "Sweatshirts": {
             "Boys": {"0-300": 0.01, "300-500": 0.03, "500-1000": 0.06, "1000-2000": 0.06, "2000+": 0.08},
-            "Girls": {"0-300": 0.01, "300-500": 0.03, "500-1000": 0.06, "1000-2000": 0.04, "2000+": 0.08}
+            "Girls": {"0-3D": 0.01, "300-500": 0.03, "500-1000": 0.06, "1000-2000": 0.04, "2000+": 0.08}
         },
         "Track Pants": {
             "Boys": {"0-300": 0.08, "300-500": 0.08, "500-1000": 0.06, "1000-2000": 0.04, "2000+": 0.08},
@@ -962,6 +962,55 @@ def get_excel_template():
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
+# --- (NEW) SKU File Uploader ---
+st.markdown("##### **(Optional) Load Myntra SKU Details**")
+
+# Add columns for uploader and a potential clear button
+sku_col_1, sku_col_2 = st.columns([3, 1])
+
+with sku_col_1:
+    sku_file = st.file_uploader(
+        "Upload 'List of SKU.csv' file:", 
+        type=['csv'],
+        help="Upload the CSV export from 'List of SKU.xlsx'. This will allow you to fetch Brand/Category/Gender by SKU."
+    )
+
+with sku_col_2:
+    if 'sku_df' in st.session_state:
+        # Clear all related SKU session state keys
+        def clear_sku_data():
+            st.session_state.pop('sku_df', None)
+            st.session_state.pop('fetched_brand', None)
+            st.session_state.pop('fetched_category', None)
+            st.session_state.pop('fetched_gender', None)
+            st.session_state.pop('fetched_style_name', None)
+            st.session_state.pop('sku_message', None)
+            st.session_state.pop('sku_input_key', None) # Clear the text input box itself
+
+        st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
+
+if sku_file is not None and 'sku_df' not in st.session_state:
+    try:
+        # Load the CSV
+        df = pd.read_csv(sku_file)
+        # --- IMPORTANT: Normalize column names from CSV ---
+        df.columns = [str(col).strip().lower() for col in df.columns]
+        
+        # Check for required columns (lowercase)
+        required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name']
+        if all(col in df.columns for col in required_sku_cols):
+            # Store in session state
+            st.session_state.sku_df = df
+            st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature in Single Product mode.")
+        else:
+            st.error(f"File is missing required columns. It must contain: {', '.join(required_sku_cols)}")
+    
+    except Exception as e:
+        st.error(f"Error loading SKU file: {e}")
+
+# --- End of (NEW) SKU File Uploader ---
+
+
 # --- MODE SELECTION ---
 col_calc_mode, col_sub_mode_placeholder = st.columns([1, 1])
 with col_calc_mode:
@@ -995,6 +1044,56 @@ if calculation_mode == 'A. Single Product Calculation':
         ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
         index=0, horizontal=True
     )
+
+    # --- (NEW) SKU Lookup Function ---
+    def lookup_sku():
+        sku = st.session_state.get('sku_input_key', '').strip()
+        if not sku:
+            # Clear session state if input is empty
+            st.session_state.fetched_brand = None
+            st.session_state.fetched_category = None
+            st.session_state.fetched_gender = None
+            st.session_state.fetched_style_name = None
+            st.session_state.sku_message = None
+            return
+
+        if 'sku_df' in st.session_state:
+            sku_df = st.session_state.sku_df
+            # Find the SKU (case-insensitive)
+            # Make sure both columns are string and lowercase for comparison
+            result = sku_df[sku_df['seller sku code'].astype(str).str.lower() == sku.lower()]
+            
+            if not result.empty:
+                st.session_state.fetched_brand = result.iloc[0]['brand']
+                st.session_state.fetched_category = result.iloc[0]['article type']
+                st.session_state.fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender'
+                st.session_state.fetched_style_name = result.iloc[0]['style name']
+                st.session_state.sku_message = f"✅ Fetched: {st.session_state.fetched_style_name}"
+            else:
+                st.session_state.fetched_brand = None
+                st.session_state.fetched_category = None
+                st.session_state.fetched_gender = None
+                st.session_state.fetched_style_name = None
+                st.session_state.sku_message = f"SKU '{sku}' not found."
+    
+    # --- (NEW) SKU Lookup UI ---
+    if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
+        st.text_input(
+            "**Fetch by SKU:**", 
+            key="sku_input_key", 
+            on_change=lookup_sku,
+            help="Enter Seller SKU Code and press Enter to fetch details."
+        )
+        # Display the message (success or error)
+        if 'sku_message' in st.session_state and st.session_state.sku_message:
+            if "✅" in st.session_state.sku_message:
+                st.success(st.session_state.sku_message)
+            else:
+                st.warning(st.session_state.sku_message)
+    elif platform_selector == 'Myntra':
+        st.info("Upload the 'List of SKU.csv' file at the top of the page to enable SKU lookup.")
+
+
     st.markdown("##### **Configuration Settings**")
     
     # --- (NEW) Myntra v3 Inputs ---
@@ -1020,23 +1119,74 @@ if calculation_mode == 'A. Single Product Calculation':
         
         # 1. Brand
         brand_options = list(MYNTRA_COMMISSION_DATA.keys())
-        myntra_new_brand = col_brand.selectbox("Select Brand:", brand_options, index=0, key="myntra_brand_v3")
+        # --- (MODIFIED) Set index based on fetched SKU ---
+        fetched_brand = st.session_state.get('fetched_brand')
+        brand_index = 0
+        if fetched_brand and fetched_brand in brand_options:
+            brand_index = brand_options.index(fetched_brand)
+        
+        myntra_new_brand = col_brand.selectbox(
+            "Select Brand:", brand_options, 
+            index=brand_index, # <-- MODIFIED
+            key="myntra_brand_v3"
+        )
         
         # 2. Category
         try:
             category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-            myntra_new_category = col_cat.selectbox("Select Category:", category_options, index=0, key="myntra_cat_v3")
+            # --- (MODIFIED) Set index based on fetched SKU ---
+            fetched_category = st.session_state.get('fetched_category')
+            category_index = 0
+            if fetched_category and fetched_category in category_options:
+                category_index = category_options.index(fetched_category)
+
+            myntra_new_category = col_cat.selectbox(
+                "Select Category:", category_options, 
+                index=category_index, # <-- MODIFIED
+                key="myntra_cat_v3"
+            )
         except KeyError:
+            # This can happen if the brand is not in the commission data
             st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
+            # Fallback to an empty list to avoid crashing
+            category_options = []
+            myntra_new_category = col_cat.selectbox(
+                "Select Category:", category_options, 
+                index=0,
+                key="myntra_cat_v3"
+            )
+        except Exception as e:
+            st.error(f"An error occurred with Category selection: {e}")
             st.stop()
             
         # 3. Gender
         try:
             gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-            myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, index=0, key="myntra_gen_v3")
+            # --- (MODIFIED) Set index based on fetched SKU ---
+            fetched_gender = st.session_state.get('fetched_gender')
+            gender_index = 0
+            # Check fetched_gender against the options
+            if fetched_gender and fetched_gender in gender_options:
+                gender_index = gender_options.index(fetched_gender)
+                
+            myntra_new_gender = col_gen.selectbox(
+                "Select Gender:", gender_options, 
+                index=gender_index, # <-- MODIFIED
+                key="myntra_gen_v3"
+            )
         except KeyError:
+             # This can happen if brand/category is not fully populated in commission data
              st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
-             st.stop()
+             # Fallback to an empty list
+             gender_options = []
+             myntra_new_gender = col_gen.selectbox(
+                "Select Gender:", gender_options, 
+                index=0,
+                key="myntra_gen_v3"
+             )
+        except Exception as e:
+            st.error(f"An error occurred with Gender selection: {e}")
+            st.stop()
         
         # 4. Kuchipoo Royalty Option
         if myntra_new_brand == 'KUCHIPOO':
@@ -1516,3 +1666,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
