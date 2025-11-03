@@ -726,10 +726,11 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         if sku_file.name.endswith('.xlsx'):
             df = pd.read_excel(sku_file, dtype=str, engine='openpyxl')
         else:
+            # --- (FIX) Use utf-8-sig to handle BOM ---
             df = pd.read_csv(sku_file, encoding='utf-8-sig', dtype=str)
         
-        # --- (BOM FIX) ---
-        df.columns = [str(col).replace('\ufeff', '').strip().lower().replace(' ', '_') for col in df.columns]
+        # --- (FIX) Clean column names ---
+        df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
         
         st.session_state.sku_df = df
         st.success(f"Successfully loaded {len(df)} SKUs from {sku_file.name}. You can now use the 'Fetch by SKU' feature.")
