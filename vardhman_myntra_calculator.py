@@ -1675,5 +1675,3 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
 
-"
-
