@@ -984,10 +984,11 @@ with sku_col_2:
             st.session_state.pop('fetched_category', None)
             st.session_state.pop('fetched_gender', None)
             st.session_state.pop('fetched_style_name', None)
-            st.session_state.pop('fetched_style_id', None) # (STYLE ID CHANGE 1)
+            st.session_state.pop('fetched_style_id', None)
+            st.session_state.pop('fetched_mrp', None) # (MRP CHANGE 1)
             st.session_state.pop('sku_message', None)
-            st.session_state.pop('sku_input_key', None) # Clear the text input box itself
-            st.session_state.pop('sku_select_key', None) # (NEW) Clear the select box key
+            st.session_state.pop('sku_input_key', None) 
+            st.session_state.pop('sku_select_key', None)
             
             # (NEW) Also clear the widget keys
             if 'myntra_brand_v3' in st.session_state:
@@ -996,33 +997,36 @@ with sku_col_2:
                 del st.session_state.myntra_cat_v3
             if 'myntra_gen_v3' in st.session_state:
                 del st.session_state.myntra_gen_v3
+            if 'new_mrp' in st.session_state: # (MRP CHANGE 2)
+                del st.session_state.new_mrp
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
 if sku_file is not None and 'sku_df' not in st.session_state:
     try:
         # Load the CSV
-        # --- (NEW FIX) Add encoding='utf-8' for safety ---
-        df = pd.read_csv(sku_file, encoding='utf-8')
+        # --- (NEW FIX) Add encoding='utf-8' and force all to string
+        df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
         
         # --- IMPORTANT: Normalize column names from CSV ---
         df.columns = [str(col).strip().lower() for col in df.columns]
         
         # --- (NEW FIX) ---
-        # Strip whitespace from all string/object columns
-        # This solves the problem of " YK" not matching "YK"
-        for col in df.select_dtypes(['object', 'string']): # Check for both
-            if col in df.columns:
-                df[col] = df[col].str.strip()
+        # Strip whitespace from all columns (since all are strings now)
+        for col in df.columns:
+            df[col] = df[col].str.strip()
         # --- (END NEW FIX) ---
 
         # Check for required columns (lowercase)
-        # (STYLE ID CHANGE 2) Added 'style id'
         required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name', 'style id']
+        # (MRP CHANGE 3) Note: 'mrp' is NOT required, we will check for it later
+        
         if all(col in df.columns for col in required_sku_cols):
             # Store in session state
             st.session_state.sku_df = df
             st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature in Single Product mode.")
+            if 'mrp' not in df.columns:
+                st.warning("Note: 'mrp' column not found in your CSV. MRP auto-fetch will be disabled.")
         else:
             missing_cols = [col for col in required_sku_cols if col not in df.columns]
             st.error(f"File is missing required columns. Missing: {', '.join(missing_cols)}")
@@ -1078,7 +1082,8 @@ if calculation_mode == 'A. Single Product Calculation':
             st.session_state.fetched_category = None
             st.session_state.fetched_gender = None
             st.session_state.fetched_style_name = None
-            st.session_state.fetched_style_id = None # (STYLE ID CHANGE 3a)
+            st.session_state.fetched_style_id = None
+            st.session_state.fetched_mrp = None # (MRP CHANGE 4)
             st.session_state.sku_message = None
             
             # (NEW) Also clear the widget keys
@@ -1088,12 +1093,13 @@ if calculation_mode == 'A. Single Product Calculation':
                 del st.session_state.myntra_cat_v3
             if 'myntra_gen_v3' in st.session_state:
                 del st.session_state.myntra_gen_v3
+            if 'new_mrp' in st.session_state: # (MRP CHANGE 5)
+                del st.session_state.new_mrp
             return
 
         if 'sku_df' in st.session_state:
             sku_df = st.session_state.sku_df
             # Find the SKU (case-insensitive)
-            # Make sure both columns are string and lowercase for comparison
             # Note: sku_df['seller sku code'] is already stripped from file loading
             result = sku_df[sku_df['seller sku code'].astype(str).str.lower() == sku.lower()]
             
@@ -1102,30 +1108,45 @@ if calculation_mode == 'A. Single Product Calculation':
                 fetched_brand = result.iloc[0]['brand']
                 fetched_category = result.iloc[0]['article type']
                 fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender' header
-                fetched_style_name = result.iloc[0]['style name'] # (STYLE ID CHANGE 3b)
-                fetched_style_id = result.iloc[0]['style id'] # (STYLE ID CHANGE 3c)
+                fetched_style_name = result.iloc[0]['style name']
+                fetched_style_id = result.iloc[0]['style id']
+                
+                # (MRP CHANGE 6) Fetch MRP only if column exists
+                fetched_mrp = None
+                if 'mrp' in sku_df.columns:
+                    mrp_val = result.iloc[0]['mrp']
+                    # Try to convert to float, ignore if it fails
+                    try:
+                        fetched_mrp = float(mrp_val)
+                    except (ValueError, TypeError):
+                        fetched_mrp = None # Failed conversion
 
                 # --- (THIS IS THE FIX) ---
                 # Set the session state keys for the selectbox widgets
-                # Yahi source of truth hai
                 st.session_state.myntra_brand_v3 = fetched_brand
                 st.session_state.myntra_cat_v3 = fetched_category
                 st.session_state.myntra_gen_v3 = fetched_gender
+                
+                # (MRP CHANGE 7) Set the MRP key
+                if fetched_mrp is not None:
+                    st.session_state.new_mrp = fetched_mrp
                 # --- (END OF FIX) ---
 
-                # Store for other potential uses (like style name)
+                # Store for other potential uses
                 st.session_state.fetched_brand = fetched_brand
                 st.session_state.fetched_category = fetched_category
                 st.session_state.fetched_gender = fetched_gender
-                st.session_state.fetched_style_name = fetched_style_name # (STYLE ID CHANGE 3d)
-                st.session_state.fetched_style_id = fetched_style_id # (STYLE ID CHANGE 3e)
+                st.session_state.fetched_style_name = fetched_style_name
+                st.session_state.fetched_style_id = fetched_style_id
+                st.session_state.fetched_mrp = fetched_mrp # Store MRP
                 st.session_state.sku_message = f"✅ Fetched: {fetched_style_name}" # Message mein name hi rakhte hain
             else:
                 st.session_state.fetched_brand = None
                 st.session_state.fetched_category = None
                 st.session_state.fetched_gender = None
                 st.session_state.fetched_style_name = None
-                st.session_state.fetched_style_id = None # (STYLE ID CHANGE 3f)
+                st.session_state.fetched_style_id = None
+                st.session_state.fetched_mrp = None # (MRP CHANGE 8)
                 st.session_state.sku_message = f"SKU '{sku}' not found."
     
     # --- (NEW) SKU Lookup UI ---
@@ -1146,8 +1167,7 @@ if calculation_mode == 'A. Single Product Calculation':
             )
         
         with sku_lookup_col2:
-            # (STYLE ID CHANGE 4)
-            # Fetch 'fetched_style_id' instead of 'fetched_style_name'
+            # Fetch 'fetched_style_id'
             style_id_to_display = st.session_state.get('fetched_style_id', '')
             st.text_input(
                 "**Style ID:**", # Label changed
@@ -1204,8 +1224,6 @@ if calculation_mode == 'A. Single Product Calculation':
         
         # 1. Brand
         brand_options = list(MYNTRA_COMMISSION_DATA.keys())
-        # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
-        # --- (NEW) Add on_change callback ---
         myntra_new_brand = col_brand.selectbox(
             "Select Brand:", brand_options, 
             key="myntra_brand_v3", # Key session state se value utha legi
@@ -1216,21 +1234,16 @@ if calculation_mode == 'A. Single Product Calculation':
         try:
             # Options 'myntra_new_brand' par dependent hain
             category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-            # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
-            # --- (NEW) Add on_change callback ---
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
                 key="myntra_cat_v3", # Key session state se value utha legi
                 on_change=category_changed
             )
         except KeyError:
-            # Yeh tab hota hai jab brand (myntra_new_brand) abhi set nahi hua ya invalid hai
-            # st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
-            # Fallback ke liye empty list
             category_options = []
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
-                index=0, # Fallback ke liye index 0 rakha hai
+                index=0, 
                 key="myntra_cat_v3"
             )
         except Exception as e:
@@ -1241,20 +1254,15 @@ if calculation_mode == 'A. Single Product Calculation':
         try:
             # Options 'myntra_new_brand' aur 'myntra_new_category' par dependent hain
             gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-            # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
             myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
                 key="myntra_gen_v3" # Key session state se value utha legi
-                # Yahaan on_change ki zaroorat nahi
             )
         except KeyError:
-             # Yeh tab hota hai jab brand/category abhi set nahi hue
-             # st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
-             # Fallback ke liye empty list
              gender_options = []
              myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
-                index=0, # Fallback ke liye index 0 rakha hai
+                index=0, 
                 key="myntra_gen_v3"
              )
         except Exception as e:
@@ -1317,7 +1325,10 @@ if calculation_mode == 'A. Single Product Calculation':
 
     # --- MRP/Discount/WDP Inputs ---
     col_mrp_in, col_price_in = st.columns(2)
+    
+    # (MRP CHANGE 9) Default value ab 2500.0 hai, lekin agar key 'new_mrp' set hai (lookup se), toh woh value use hogi
     new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, step=100.0, key="new_mrp")
+    
     new_discount = 0.0
     wrong_defective_price = None
     
