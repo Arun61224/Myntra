@@ -760,7 +760,7 @@ if sku_file is not None and 'sku_df' not in st.session_state:
 # --- (NEW) Two sets of templates ---
 st.markdown("**Download Templates (CSV):**")
 with st.expander("Templates for 'Check With Selling Price' (Profit Calc)"):
-    st.info("In files ko use karein jab aapke paas 'selling_price' hai aur aap 'Net_Profit' calculate karna chahte hain.")
+    # st.info("In files ko use karein jab aapke paas 'selling_price' hai aur aap 'Net_Profit' calculate karna chahte hain.")
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
@@ -795,7 +795,7 @@ with st.expander("Templates for 'Check With Selling Price' (Profit Calc)"):
         )
 
 with st.expander("Templates for 'Check With Cost Price' (Target Margin)"):
-    st.info("In files ko use karein jab aap 'Target Margin' set karke 'Required_Selling_Price' calculate karna chahte hain.")
+    # st.info("In files ko use karein jab aap 'Target Margin' set karke 'Required_Selling_Price' calculate karna chahte hain.")
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
@@ -1024,7 +1024,7 @@ if main_mode == "Single Product Calculation":
 
 
         if platform_selector == 'Myntra':
-            st.info("Myntra calculation is based on new v3 rules (Slab-based Fixed Fee & Commission).")
+            # st.info("Myntra calculation is based on new v3 rules (Slab-based Fixed Fee & Commission).")
             
             col_brand, col_cat, col_gen = st.columns(3)
             
