@@ -1396,4 +1396,3 @@ elif main_mode == "Bulk Calculation":
             else:
                 st.warning("Calculation finished, but no results were generated. Please check your file and column names.")
 
-
