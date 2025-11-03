@@ -726,7 +726,7 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         if sku_file.name.endswith('.xlsx'):
             df = pd.read_excel(sku_file, dtype=str, engine='openpyxl')
         else:
-            df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
+            df = pd.read_csv(sku_file, encoding='utf-8-sig', dtype=str)
         
         df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
         
@@ -792,7 +792,7 @@ with st.expander("Download Data Templates (CSV)"):
         )
     
     with col6:
-        # --- (NEW) Consolidated Template ---
+        # --- (MODIFIED) Consolidated Template ---
         consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,,,,,,,,Test Meesho\n"
         st.download_button(
             label="Consolidated",
