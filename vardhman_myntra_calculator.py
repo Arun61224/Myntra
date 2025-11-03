@@ -728,7 +728,8 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         else:
             df = pd.read_csv(sku_file, encoding='utf-8-sig', dtype=str)
         
-        df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
+        # --- (BOM FIX) ---
+        df.columns = [str(col).replace('\ufeff', '').strip().lower().replace(' ', '_') for col in df.columns]
         
         st.session_state.sku_df = df
         st.success(f"Successfully loaded {len(df)} SKUs from {sku_file.name}. You can now use the 'Fetch by SKU' feature.")
