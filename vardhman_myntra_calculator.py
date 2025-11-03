@@ -363,8 +363,8 @@ def perform_calculations(mrp, discount,
         
         commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) 
             
-            commission_base = seller_price * commission_rate
-            commission_tax = commission_base * GST_RATE_FEES
+        commission_base = seller_price * commission_rate
+        commission_tax = commission_base * GST_RATE_FEES
         final_commission = commission_base + commission_tax
         
         royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) # Use customer_paid_amount
