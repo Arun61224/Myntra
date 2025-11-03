@@ -979,7 +979,7 @@ with sku_col_2:
     if 'sku_df' in st.session_state:
         # Clear all related SKU session state keys
         def clear_sku_data():
-            # (MRP/ID FIX 1) Clear all related keys
+            # (COST/MRP/ID FIX 1) Clear all related keys
             st.session_state.pop('sku_df', None)
             st.session_state.pop('fetched_brand', None)
             st.session_state.pop('fetched_category', None)
@@ -987,6 +987,7 @@ with sku_col_2:
             st.session_state.pop('fetched_style_name', None)
             st.session_state.pop('fetched_style_id', None)
             st.session_state.pop('fetched_mrp', None)
+            st.session_state.pop('fetched_product_cost', None) # (COST FIX 1)
             st.session_state.pop('sku_message', None)
             st.session_state.pop('sku_input_key', None) 
             st.session_state.pop('sku_select_key', None)
@@ -1002,6 +1003,8 @@ with sku_col_2:
                 del st.session_state.new_mrp
             if 'style_id_display' in st.session_state:
                 del st.session_state.style_id_display
+            if 'single_cost' in st.session_state: # (COST FIX 2)
+                del st.session_state.single_cost
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
@@ -1027,9 +1030,14 @@ if sku_file is not None and 'sku_df' not in st.session_state:
             # Store in session state
             st.session_state.sku_df = df
             st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature in Single Product mode.")
+            
             # (MRP/ID FIX 2) Check for 'product mrp' (after cleaning)
             if 'product mrp' not in df.columns:
                 st.warning("Note: 'Product MRP' column not found in your CSV. MRP auto-fetch will be disabled.")
+            
+            # (COST FIX 3) Check for 'product cost' (after cleaning)
+            if 'product cost' not in df.columns:
+                st.warning("Note: 'Product cost' column not found in your CSV. Product Cost auto-fetch will be disabled.")
         else:
             missing_cols = [col for col in required_sku_cols if col not in df.columns]
             st.error(f"File is missing required columns. Missing: {', '.join(missing_cols)}")
@@ -1087,6 +1095,7 @@ if calculation_mode == 'A. Single Product Calculation':
             st.session_state.fetched_style_name = None
             st.session_state.fetched_style_id = None
             st.session_state.fetched_mrp = None
+            st.session_state.fetched_product_cost = None # (COST FIX 4)
             st.session_state.sku_message = None
             
             # (MRP/ID FIX 3) Clear all widget keys
@@ -1100,6 +1109,8 @@ if calculation_mode == 'A. Single Product Calculation':
                 del st.session_state.new_mrp
             if 'style_id_display' in st.session_state:
                 del st.session_state.style_id_display
+            if 'single_cost' in st.session_state: # (COST FIX 5)
+                del st.session_state.single_cost
             return
 
         if 'sku_df' in st.session_state:
@@ -1125,6 +1136,15 @@ if calculation_mode == 'A. Single Product Calculation':
                         fetched_mrp = float(mrp_val)
                     except (ValueError, TypeError):
                         fetched_mrp = None # Failed conversion
+                
+                # (COST FIX 6) Fetch Product Cost
+                fetched_product_cost = None
+                if 'product cost' in sku_df.columns:
+                    cost_val = result.iloc[0]['product cost']
+                    try:
+                        fetched_product_cost = float(cost_val)
+                    except (ValueError, TypeError):
+                        fetched_product_cost = None
 
                 # --- (THIS IS THE FIX) ---
                 # Set the session state keys for the widgets
@@ -1135,6 +1155,9 @@ if calculation_mode == 'A. Single Product Calculation':
                 
                 if fetched_mrp is not None:
                     st.session_state.new_mrp = fetched_mrp # Set MRP box
+                
+                if fetched_product_cost is not None: # (COST FIX 7)
+                    st.session_state.single_cost = fetched_product_cost # Set Product Cost box
                 # --- (END OF FIX) ---
 
                 # Store for other potential uses
@@ -1144,6 +1167,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 st.session_state.fetched_style_name = fetched_style_name
                 st.session_state.fetched_style_id = fetched_style_id
                 st.session_state.fetched_mrp = fetched_mrp # Store MRP
+                st.session_state.fetched_product_cost = fetched_product_cost # (COST FIX 8)
                 st.session_state.sku_message = f"✅ Fetched: {fetched_style_name}" # Message mein name hi rakhte hain
             else:
                 st.session_state.fetched_brand = None
@@ -1152,6 +1176,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 st.session_state.fetched_style_name = None
                 st.session_state.fetched_style_id = None
                 st.session_state.fetched_mrp = None
+                st.session_state.fetched_product_cost = None # (COST FIX 9)
                 st.session_state.sku_message = f"SKU '{sku}' not found."
     
     # --- (NEW) SKU Lookup UI ---
@@ -1323,8 +1348,10 @@ if calculation_mode == 'A. Single Product Calculation':
     
     # --- Common Inputs ---
     col_cost, col_target = st.columns(2)
+    # (COST FIX 10) Default value 1000.0, lekin key 'single_cost' se fetch karega
     product_cost = col_cost.number_input("Product Cost (₹)", min_value=0.0, value=1000.0, step=10.0, key="single_cost")
-    product_margin_target_rs = col_target.number_input("Target Net Profit (₹)", min_value=0.0, value=200.0, step=10.0, key="single_target")
+    # (RENAME FIX 1) Label changed
+    product_margin_target_rs = col_target.number_input("Add Margin Amount (₹)", min_value=0.0, value=200.0, step=10.0, key="single_target")
     st.divider()
 
     # --- MRP/Discount/WDP Inputs ---
@@ -1338,7 +1365,8 @@ if calculation_mode == 'A. Single Product Calculation':
     
     if platform_selector == 'Meesho':
         if single_calc_mode == 'Target Discount':
-            col_price_in.info(f"WDP will be calculated to achieve Target Profit of ₹ {product_margin_target_rs:,.2f}")
+            # (RENAME FIX 2) Info text changed
+            col_price_in.info(f"WDP will be calculated to achieve Margin Amount of ₹ {product_margin_target_rs:,.2f}")
         else:
             wrong_defective_price = col_price_in.number_input(
                 "Wrong/Defective Price (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
@@ -1349,7 +1377,8 @@ if calculation_mode == 'A. Single Product Calculation':
         if single_calc_mode == 'Profit Calculation':
             new_discount = col_price_in.number_input("Discount Amount (₹)", min_value=0.0, max_value=new_mrp, value=500.0, step=10.0, key="new_discount_manual")
         else:
-            col_price_in.info(f"Targeting a Net Profit of ₹ {product_margin_target_rs:,.2f}...")
+            # (RENAME FIX 3) Info text changed
+            col_price_in.info(f"Targeting an 'Add Margin Amount' of ₹ {product_margin_target_rs:,.2f}...")
 
     st.divider()
 
@@ -1378,7 +1407,8 @@ if calculation_mode == 'A. Single Product Calculation':
                 )
                 
                 if calculated_discount is None:
-                    st.error(f"Cannot achieve the Target Profit of ₹ {product_margin_target_rs:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
+                    # (RENAME FIX 4) Text changed
+                    st.error(f"Cannot achieve the Target Margin of ₹ {product_margin_target_rs:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
                     st.stop()
                     
                 new_discount = calculated_discount
@@ -1407,7 +1437,8 @@ if calculation_mode == 'A. Single Product Calculation':
             target_profit = product_margin_target_rs
             delta_value = net_profit - target_profit
             current_margin_percent = (net_profit / product_cost) * 100 if product_cost > 0 else 0.0
-            delta_label = f"vs Target: ₹ {delta_value:,.2f}"
+            # (RENAME FIX 5) Delta label changed
+            delta_label = f"vs Margin: ₹ {delta_value:,.2f}"
             delta_color = "normal" if net_profit >= target_profit else "inverse"
 
             # --- DISPLAY RESULTS (Single) ---
