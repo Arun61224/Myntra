@@ -119,8 +119,8 @@ MYNTRA_COMMISSION_DATA = {
             "Girls": {"0-300": 0.08, "300-500": 0.08, "500-1000": 0.05, "1000-2000": 0.05, "2000+": 0.08}
         },
         "Tshirts": {
-            "Boys": {"0-300": 0.10, "300-500": 0.10, "500-1000": 0.06, "1000-2000": 0.05, "2000+": 0.08},
-            "Girls": {"0-300": 0.10, "300-500": 0.10, "500-1000": 0.06, "1000-2000": 0.06, "2000+": 0.08}
+            "Boys": {"0-300": 0.1, "300-500": 0.1, "500-1000": 0.06, "1000-2000": 0.05, "2000+": 0.08},
+            "Girls": {"0-300": 0.1, "300-500": 0.1, "500-1000": 0.06, "1000-2000": 0.06, "2000+": 0.08}
         }
     },
     "YK Marvel": {
@@ -140,7 +140,7 @@ MYNTRA_COMMISSION_DATA = {
             "Boys": {"0-300": 0.08, "300-500": 0.08, "500-1000": 0.05, "1000-2000": 0.04, "2000+": 0.08}
         },
         "Tshirts": {
-            "Boys": {"0-300": 0.10, "300-500": 0.10, "500-1000": 0.06, "1000-2000": 0.06, "2000+": 0.08}
+            "Boys": {"0-300": 0.1, "300-500": 0.1, "500-1000": 0.06, "1000-2000": 0.06, "2000+": 0.08}
         }
     }
 }
@@ -533,8 +533,8 @@ sku_col_1, sku_col_2 = st.columns([3, 1])
 
 with sku_col_1:
     sku_file = st.file_uploader(
-        "Upload 'Master_SKU_File.csv' file:", 
-        type=['csv'],
+        "Upload 'Master_SKU_File.csv' or '.xlsx' file:", 
+        type=['csv', 'xlsx'],
         help="Upload the consolidated Master SKU file. This will allow you to fetch details for ALL portals."
     )
 
@@ -577,7 +577,11 @@ with sku_col_2:
 
 if sku_file is not None and 'sku_df' not in st.session_state:
     try:
-        df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
+        # --- (NEW) Read CSV or XLSX ---
+        if sku_file.name.endswith('.xlsx'):
+            df = pd.read_excel(sku_file, dtype=str, engine='openpyxl')
+        else:
+            df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
         
         # --- (NEW) Clean column headers ---
         df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
@@ -717,7 +721,7 @@ if 'sku_df' in st.session_state:
 
 # --- (MODIFIED) Message bhi ab sab platforms ke liye hai ---
 if 'sku_df' not in st.session_state:
-    st.info("Upload the 'Master_SKU_File.csv' file at the top of the page to enable SKU lookup.")
+    st.info("Upload the 'Master_SKU_File.csv' or '.xlsx' file at the top of the page to enable SKU lookup.")
 
 
 st.markdown("##### **Configuration Settings**")
