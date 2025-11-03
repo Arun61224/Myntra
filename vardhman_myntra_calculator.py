@@ -355,8 +355,8 @@ def perform_calculations(mrp, discount,
         
         gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, taxable_amount_value) 
             
-            yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value)
-        
+            yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value) 
+
             total_fixed_charge = gt_charge + yk_fixed_fee 
         
         seller_price = customer_paid_amount - gt_charge # Use customer_paid_amount
@@ -475,8 +475,11 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
                                        meesho_charge_rate, wdp,
                                        apply_royalty, 0.0) 
         
-        net_profit_before_royalty = results[10]
-        royalty_fee_for_profit = results[3] 
+        # --- (FIX) Add check for NoneType ---
+        net_profit_before_royalty = results[10] if results[10] is not None else 0.0
+        royalty_fee_for_profit = results[3] if results[3] is not None else 0.0
+        # --- (END FIX) ---
+        
         return net_profit_before_royalty - royalty_fee_for_profit
 
     if platform == 'Meesho':
@@ -1050,5 +1053,4 @@ if new_mrp > 0 and product_cost > 0:
         st.code(traceback.format_exc())
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
-
 
