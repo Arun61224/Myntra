@@ -793,7 +793,7 @@ with st.expander("Download Data Templates (CSV)"):
     
     with col6:
         # --- (NEW) Consolidated Template ---
-        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-TEST-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-TEST-003,1799,400,,,,,,,,Test Ajio\n"
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,,,,,,,,Test Meesho\n"
         st.download_button(
             label="Consolidated",
             data=consolidated_template_csv,
@@ -1395,4 +1395,5 @@ elif main_mode == "Bulk Calculation":
                 )
             else:
                 st.warning("Calculation finished, but no results were generated. Please check your file and column names.")
+
 
