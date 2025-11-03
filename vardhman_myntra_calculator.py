@@ -1150,31 +1150,19 @@ if calculation_mode == 'A. Single Product Calculation':
         
         # 1. Brand
         brand_options = list(MYNTRA_COMMISSION_DATA.keys())
-        # --- (MODIFIED) Set index based on fetched SKU ---
-        fetched_brand = st.session_state.get('fetched_brand') # This is now stripped
-        brand_index = 0
-        if fetched_brand and fetched_brand in brand_options:
-            brand_index = brand_options.index(fetched_brand)
-        
+        # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
         myntra_new_brand = col_brand.selectbox(
             "Select Brand:", brand_options, 
-            index=brand_index, # <-- MODIFIED
-            key="myntra_brand_v3"
+            key="myntra_brand_v3" # Key session state se value utha legi
         )
         
         # 2. Category
         try:
             category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-            # --- (MODIFIED) Set index based on fetched SKU ---
-            fetched_category = st.session_state.get('fetched_category') # This is now stripped
-            category_index = 0
-            if fetched_category and fetched_category in category_options:
-                category_index = category_options.index(fetched_category)
-
+            # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
-                index=category_index, # <-- MODIFIED
-                key="myntra_cat_v3"
+                key="myntra_cat_v3" # Key session state se value utha legi
             )
         except KeyError:
             # This can happen if the brand is not in the commission data
@@ -1183,7 +1171,7 @@ if calculation_mode == 'A. Single Product Calculation':
             category_options = []
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
-                index=0,
+                index=0, # Fallback ke liye index 0 rakha hai
                 key="myntra_cat_v3"
             )
         except Exception as e:
@@ -1193,17 +1181,10 @@ if calculation_mode == 'A. Single Product Calculation':
         # 3. Gender
         try:
             gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-            # --- (MODIFIED) Set index based on fetched SKU ---
-            fetched_gender = st.session_state.get('fetched_gender') # This is now stripped
-            gender_index = 0
-            # Check fetched_gender against the options
-            if fetched_gender and fetched_gender in gender_options:
-                gender_index = gender_options.index(fetched_gender)
-                
+            # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
             myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
-                index=gender_index, # <-- MODIFIED
-                key="myntra_gen_v3"
+                key="myntra_gen_v3" # Key session state se value utha legi
             )
         except KeyError:
              # This can happen if brand/category is not fully populated in commission data
@@ -1212,7 +1193,7 @@ if calculation_mode == 'A. Single Product Calculation':
              gender_options = []
              myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
-                index=0,
+                index=0, # Fallback ke liye index 0 rakha hai
                 key="myntra_gen_v3"
              )
         except Exception as e:
@@ -1697,3 +1678,4 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
+
