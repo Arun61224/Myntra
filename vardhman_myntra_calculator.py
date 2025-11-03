@@ -322,17 +322,17 @@ def calculate_taxable_amount_value(customer_paid_amount):
 # --- (MODIFIED) CORE CALCULATION LOGIC ---
 # ==============================================================================
 def perform_calculations(mrp, discount, 
-                         # Common Params
-                         product_cost, platform,
-                         # Myntra v3 Params
-                         myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
-                         apply_kuchipoo_royalty='No',
-                         # Jiomart Params
-                         weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
-                         # Meesho Params
-                         meesho_charge_rate=0.0, wrong_defective_price=None,
-                         # --- (DEPRECATED PARAMS - kept for safety, but not used by Myntra) ---
-                         apply_royalty='No', marketing_fee_rate=0.0):
+                           # Common Params
+                           product_cost, platform,
+                           # Myntra v3 Params
+                           myntra_new_brand=None, myntra_new_category=None, myntra_new_gender=None,
+                           apply_kuchipoo_royalty='No',
+                           # Jiomart Params
+                           weight_in_kg=0.0, shipping_zone=None, jiomart_category=None, jiomart_benefit_rate=0.0,
+                           # Meesho Params
+                           meesho_charge_rate=0.0, wrong_defective_price=None,
+                           # --- (DEPRECATED PARAMS - kept for safety, but not used by Myntra) ---
+                           apply_royalty='No', marketing_fee_rate=0.0):
     
     # Initialize common variables
     gt_charge = 0.0 # This will store Fee 1 (50/80/145...)
@@ -415,6 +415,7 @@ def perform_calculations(mrp, discount,
             final_commission = commission_base + commission_tax
             
             # 7. Calculate New Royalty (Base is Invoice Value / original sale_price)
+            # --- (MODIFIED) `apply_kuchipoo_royalty` ab automatic aa raha hai ---
             royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, sale_price, apply_kuchipoo_royalty) # Based on 1005
             
             # 8. marketing_fee_base 0.0 hi rahega
@@ -864,7 +865,7 @@ st.markdown("##### **Configuration Settings**")
 myntra_new_brand = None
 myntra_new_category = None
 myntra_new_gender = None
-apply_kuchipoo_royalty = 'No'
+# --- (DELETED) Manual `apply_kuchipoo_royalty` variable ---
 
 # --- (EXISTING) Other Platform Inputs ---
 jiomart_category = None
@@ -941,12 +942,8 @@ if platform_selector == 'Myntra':
         st.error(f"An error occurred with Gender selection: {e}")
         st.stop()
     
-    # 4. Kuchipoo Royalty Option
-    if myntra_new_brand == 'KUCHIPOO':
-        apply_kuchipoo_royalty = st.radio(
-            "Apply Kuchipoo Royalty (10% of Sale Price)?",
-            ('Yes', 'No'), index=1, horizontal=True, key="kuchipoo_royalty_radio"
-        )
+    # --- (DELETED) Kuchipoo Royalty Option ---
+    # Yeh section delete kar diya gaya hai
     
 
 elif platform_selector == 'Jiomart':
@@ -1038,12 +1035,34 @@ if new_mrp > 0 and product_cost > 0:
     # ------------------------
 
     try:
+        # --- (NEW) Auto-determine Kuchipoo Royalty ---
+        apply_kuchipoo_royalty = 'No' # Default
+        
+        if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
+            if myntra_new_brand == 'KUCHIPOO':
+                selected_sku = st.session_state.get('sku_select_key', '').strip()
+                if selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC")):
+                    apply_kuchipoo_royalty = 'Yes'
+                
+                # Display status message (only if SKU is selected)
+                if selected_sku and selected_sku != "Select SKU...":
+                    if apply_kuchipoo_royalty == 'Yes':
+                        st.success(f"Auto-applied 10% Kuchipoo Royalty (SKU: {selected_sku})")
+                    else:
+                        st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
+        
+        elif platform_selector == 'Myntra':
+            # SKU file not loaded, so logic can't run
+            st.warning("SKU file not loaded. Automatic Kuchipoo Royalty check is disabled.")
+        
+        # --- (END NEW) ---
+        
         # --- CALCULATION BLOCK (Single) ---
         
         if single_calc_mode == 'Target Discount':
             calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
                 new_mrp, product_margin_target_rs, product_cost, platform_selector,
-                myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty,
+                myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, # This now has the auto-value
                 weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
                 meesho_charge_rate, None, # Pass None for WDP
                 apply_royalty
@@ -1068,7 +1087,7 @@ if new_mrp > 0 and product_cost > 0:
          yk_fixed_fee # (NEW) Unpack 21st item
          ) = perform_calculations(
              new_mrp, new_discount, product_cost, platform_selector,
-             myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty,
+             myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, # This also gets the auto-value
              weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
              meesho_charge_rate, wrong_defective_price,
              apply_royalty, 0.0 # Pass 0 for deprecated marketing fee
@@ -1158,7 +1177,7 @@ if new_mrp > 0 and product_cost > 0:
                         # gt_charge (from tuple[1]) is total fixed fee for these platforms
                         col4_l.metric(label=fixed_charge_label, value=f"₹ {gt_charge:,.2f}")
                         col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
-                    
+                        
                     # --- (MODIFICATION 5 END) ---
 
 
