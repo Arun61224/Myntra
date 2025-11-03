@@ -628,12 +628,13 @@ def lookup_sku():
     if 'sku_df' in st.session_state:
         sku_df = st.session_state.sku_df
         platform = st.session_state.get('platform_selector_key', 'Myntra')
+        cols = sku_df.columns
 
         # --- (NEW) DYNAMIC HEADER MAPPING ---
         sku_col_name = None
-        if 'seller_sku_code' in sku_df.columns:
+        if 'seller_sku_code' in cols:
             sku_col_name = 'seller_sku_code'
-        elif 'sku_code' in sku_df.columns: # For Snapdeal
+        elif 'sku_code' in cols: # For Snapdeal
             sku_col_name = 'sku_code'
         
         if not sku_col_name:
@@ -641,11 +642,11 @@ def lookup_sku():
             return
 
         mrp_col_name = None
-        if 'product_mrp' in sku_df.columns: # Master file
+        if 'product_mrp' in cols: # Master file
             mrp_col_name = 'product_mrp'
-        elif 'mrp' in sku_df.columns: # Jiomart, Ajio, etc.
+        elif 'mrp' in cols: # Jiomart, Ajio, etc.
             mrp_col_name = 'mrp'
-        elif 'product_mrp_' in sku_df.columns: # Myntra old file
+        elif 'product_mrp_' in cols: # Myntra old file
              mrp_col_name = 'product_mrp_' 
         
         if not mrp_col_name:
@@ -653,9 +654,9 @@ def lookup_sku():
             return
 
         cost_col_name = None
-        if 'product_cost' in sku_df.columns: # Master or Myntra
+        if 'product_cost' in cols: # Master or Myntra
             cost_col_name = 'product_cost'
-        elif 'cost_price' in sku_df.columns: # Jiomart, Ajio, etc.
+        elif 'cost_price' in cols: # Jiomart, Ajio, etc.
             cost_col_name = 'cost_price'
 
         if not cost_col_name:
@@ -676,42 +677,37 @@ def lookup_sku():
                 st.session_state.single_cost = float(row[cost_col_name])
             except (ValueError, TypeError, KeyError): pass
 
-            if 'style_id' in sku_df.columns:
+            if 'style_id' in cols:
                 st.session_state.style_id_display = row['style_id']
 
             if platform == 'Myntra':
-                if 'myntra_brand' in sku_df.columns:
-                    st.session_state.myntra_brand_v3 = row['myntra_brand']
-                elif 'brand' in sku_df.columns: # Fallback for old Myntra file
-                     st.session_state.myntra_brand_v3 = row['brand']
-                
-                if 'myntra_article_type' in sku_df.columns:
-                    st.session_state.myntra_cat_v3 = row['myntra_article_type']
-                elif 'article_type' in sku_df.columns: # Fallback
-                     st.session_state.myntra_cat_v3 = row['article_type']
+                brand_col = 'myntra_brand' if 'myntra_brand' in cols else 'brand' if 'brand' in cols else None
+                cat_col = 'myntra_article_type' if 'myntra_article_type' in cols else 'article_type' if 'article_type' in cols else None
+                gen_col = 'myntra_gender' if 'myntra_gender' in cols else 'gender' if 'gender' in cols else None
 
-                if 'myntra_gender' in sku_df.columns:
-                    st.session_state.myntra_gen_v3 = row['myntra_gender']
-                elif 'gender' in sku_df.columns: # Fallback
-                    st.session_state.myntra_gen_v3 = row['gender']
+                if brand_col: st.session_state.myntra_brand_v3 = row[brand_col]
+                if cat_col: st.session_state.myntra_cat_v3 = row[cat_col]
+                if gen_col: st.session_state.myntra_gen_v3 = row[gen_col]
                     
             elif platform == 'Jiomart':
-                if 'jiomart_category' in sku_df.columns:
-                    st.session_state.jiomart_category_selector = row['jiomart_category']
-                elif 'category' in sku_df.columns: # Fallback
-                    st.session_state.jiomart_category_selector = row['category']
+                cat_col = 'jiomart_category' if 'jiomart_category' in cols else 'category' if 'category' in cols else None
+                weight_col = 'product_weight_kg' if 'product_weight_kg' in cols else 'product_weight' if 'product_weight' in cols else None
+                zone_col = 'shipping_zone' if 'shipping_zone' in cols else None
+
+                if cat_col: st.session_state.jiomart_category_selector = row[cat_col]
+                if zone_col: st.session_state.single_zone = row[zone_col]
                 
-                if 'product_weight_kg' in sku_df.columns:
-                    try: st.session_state.single_weight = float(row['product_weight_kg'])
-                    except (ValueError, TypeError): pass
-                elif 'product_weight' in sku_df.columns: # Fallback
-                     try: st.session_state.single_weight = float(row['product_weight']) / 1000.0 
-                     except (ValueError, TypeError): pass
+                if weight_col:
+                    try:
+                        weight_val = float(row[weight_col])
+                        if weight_col == 'product_weight': # Assume grams
+                            st.session_state.single_weight = weight_val / 1000.0
+                        else: # Assume KG
+                            st.session_state.single_weight = weight_val
+                    except (ValueError, TypeError): 
+                        pass # Keep default
 
-                if 'shipping_zone' in sku_df.columns:
-                    st.session_state.single_zone = row['shipping_zone']
-
-            style_name_col = 'style_name' if 'style_name' in sku_df.columns else sku_col_name
+            style_name_col = 'style_name' if 'style_name' in cols else sku_col_name
             st.session_state.sku_message = f"✅ Fetched: {row.get(style_name_col, sku)}"
         else:
             st.session_state.sku_message = f"SKU '{sku}' not found."
@@ -722,15 +718,16 @@ if 'sku_df' in st.session_state:
     
     with sku_lookup_col1:
         sku_df = st.session_state.sku_df 
+        cols = sku_df.columns
         
         sku_col_name = None
-        if 'seller_sku_code' in sku_df.columns:
+        if 'seller_sku_code' in cols:
             sku_col_name = 'seller_sku_code'
-        elif 'sku_code' in sku_df.columns: # For Snapdeal
+        elif 'sku_code' in cols: # For Snapdeal
             sku_col_name = 'sku_code'
         
         if sku_col_name:
-            sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df[sku_col_name].unique().tolist())
+            sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df[sku_col_name].dropna().unique().tolist())
             st.selectbox(
                 "**Fetch by SKU:**",
                 options=sku_options,
@@ -755,7 +752,7 @@ if 'sku_df' in st.session_state:
             st.warning(st.session_state.sku_message)
 
 if 'sku_df' not in st.session_state:
-    st.info("Upload the 'Master_SKU_File.csv' or '.xlsx' file at the top of the page to enable SKU lookup.")
+    st.info("Upload your SKU file (CSV or XLSX) at the top of the page to enable SKU lookup.")
 
 
 st.markdown("##### **Configuration Settings**")
