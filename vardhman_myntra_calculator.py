@@ -403,8 +403,8 @@ def perform_calculations(mrp, discount,
             total_fixed_charge = gt_charge + yk_fixed_fee # For display in box 2
             
             # 4. Calculate "Seller Price" (Base for Commission)
-            # Seller Price = Invoice Value - GT Charge - YK Fixed Fee
-            seller_price = sale_price - gt_charge - yk_fixed_fee # e.g., 1005 - 171.1 - 31.86
+            # (USER REQUEST CHANGE) Seller Price = Invoice Value - GT Charge
+            seller_price = sale_price - gt_charge # e.g., 1005 - 171.1
             
             # 5. Get Commission Rate based on Seller Price
             commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) # Based on new seller_price
@@ -516,8 +516,8 @@ def perform_calculations(mrp, discount,
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
     net_profit = settled_amount - product_cost
 
-    # sale_price (index 0) is now 833.9 for Myntra, and 1005 for others
-    # customer_paid_amount (index 2) is 1005 for ALL non-Meesho platforms
+    # sale_price (index 0) is now (Invoice Value - GT Charge) for Myntra, and (MRP - Discount) for others
+    # customer_paid_amount (index 2) is (MRP - Discount) for ALL non-Meesho platforms
     # gt_charge (index 1) is Fee 1 for Myntra, or total fixed fee for others
     # yk_fixed_fee (index 20) is Fee 2 for Myntra
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee,
@@ -791,7 +791,7 @@ def bulk_process_data(df, mode='Profit Calculation'):
                 'Platform': platform,
                 'MRP': mrp,
                 'Discount': final_discount_display,
-                'Sale_Price': sale_price, # This is now (Invoice-GT-YKFee) for Myntra
+                'Sale_Price': sale_price, # This is now (Invoice-GT) for Myntra
                 'Target_Profit_In': target_profit_bulk if mode == 'Target Discount' else np.nan,
                 'Product_Cost': product_cost,
                 'Royalty': royalty_fee,
@@ -1466,7 +1466,7 @@ if calculation_mode == 'A. Single Product Calculation':
                     discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
                     col2_l.metric(label="Discount Amount", value=f"₹ {new_discount:,.2f}", delta=f"{discount_percent:,.2f}% of MRP", delta_color="off")
                     
-                    # sale_price is now the new (Invoice - GT - YKFee) for Myntra
+                    # sale_price is now the new (Invoice - GT) for Myntra
                     # and the original (MRP - Discount) for others
                     col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
                     st.markdown("---")
