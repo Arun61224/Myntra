@@ -984,6 +984,7 @@ with sku_col_2:
             st.session_state.pop('fetched_category', None)
             st.session_state.pop('fetched_gender', None)
             st.session_state.pop('fetched_style_name', None)
+            st.session_state.pop('fetched_style_id', None) # (STYLE ID CHANGE 1)
             st.session_state.pop('sku_message', None)
             st.session_state.pop('sku_input_key', None) # Clear the text input box itself
             st.session_state.pop('sku_select_key', None) # (NEW) Clear the select box key
@@ -1016,7 +1017,8 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         # --- (END NEW FIX) ---
 
         # Check for required columns (lowercase)
-        required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name']
+        # (STYLE ID CHANGE 2) Added 'style id'
+        required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name', 'style id']
         if all(col in df.columns for col in required_sku_cols):
             # Store in session state
             st.session_state.sku_df = df
@@ -1076,6 +1078,7 @@ if calculation_mode == 'A. Single Product Calculation':
             st.session_state.fetched_category = None
             st.session_state.fetched_gender = None
             st.session_state.fetched_style_name = None
+            st.session_state.fetched_style_id = None # (STYLE ID CHANGE 3a)
             st.session_state.sku_message = None
             
             # (NEW) Also clear the widget keys
@@ -1099,6 +1102,8 @@ if calculation_mode == 'A. Single Product Calculation':
                 fetched_brand = result.iloc[0]['brand']
                 fetched_category = result.iloc[0]['article type']
                 fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender' header
+                fetched_style_name = result.iloc[0]['style name'] # (STYLE ID CHANGE 3b)
+                fetched_style_id = result.iloc[0]['style id'] # (STYLE ID CHANGE 3c)
 
                 # --- (THIS IS THE FIX) ---
                 # Set the session state keys for the selectbox widgets
@@ -1112,13 +1117,15 @@ if calculation_mode == 'A. Single Product Calculation':
                 st.session_state.fetched_brand = fetched_brand
                 st.session_state.fetched_category = fetched_category
                 st.session_state.fetched_gender = fetched_gender
-                st.session_state.fetched_style_name = result.iloc[0]['style name']
-                st.session_state.sku_message = f"✅ Fetched: {st.session_state.fetched_style_name}"
+                st.session_state.fetched_style_name = fetched_style_name # (STYLE ID CHANGE 3d)
+                st.session_state.fetched_style_id = fetched_style_id # (STYLE ID CHANGE 3e)
+                st.session_state.sku_message = f"✅ Fetched: {fetched_style_name}" # Message mein name hi rakhte hain
             else:
                 st.session_state.fetched_brand = None
                 st.session_state.fetched_category = None
                 st.session_state.fetched_gender = None
                 st.session_state.fetched_style_name = None
+                st.session_state.fetched_style_id = None # (STYLE ID CHANGE 3f)
                 st.session_state.sku_message = f"SKU '{sku}' not found."
     
     # --- (NEW) SKU Lookup UI ---
@@ -1139,13 +1146,14 @@ if calculation_mode == 'A. Single Product Calculation':
             )
         
         with sku_lookup_col2:
-            # (NEW) Display Style Name in a disabled text box
-            style_name_to_display = st.session_state.get('fetched_style_name', '')
+            # (STYLE ID CHANGE 4)
+            # Fetch 'fetched_style_id' instead of 'fetched_style_name'
+            style_id_to_display = st.session_state.get('fetched_style_id', '')
             st.text_input(
-                "**Style Name:**",
-                value=style_name_to_display,
+                "**Style ID:**", # Label changed
+                value=style_id_to_display, # Value changed
                 disabled=True,
-                key="style_name_display"
+                key="style_id_display" # Key changed
             )
         # --- End of Modification ---
 
@@ -1217,7 +1225,7 @@ if calculation_mode == 'A. Single Product Calculation':
             )
         except KeyError:
             # Yeh tab hota hai jab brand (myntra_new_brand) abhi set nahi hua ya invalid hai
-            st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
+            # st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
             # Fallback ke liye empty list
             category_options = []
             myntra_new_category = col_cat.selectbox(
@@ -1241,7 +1249,7 @@ if calculation_mode == 'A. Single Product Calculation':
             )
         except KeyError:
              # Yeh tab hota hai jab brand/category abhi set nahi hue
-             st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
+             # st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
              # Fallback ke liye empty list
              gender_options = []
              myntra_new_gender = col_gen.selectbox(
