@@ -348,7 +348,7 @@ def perform_calculations(mrp, discount,
         gt_charge = 0.0
         yk_fixed_fee = 0.0
         marketing_fee_base = 0.0
-        royalty_fee = 0.0
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # --- (CHANGED) ---
         total_fixed_charge = 0.0
 
     elif platform == 'Myntra':
@@ -622,7 +622,7 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 is_myntra_royalty_sku = sku.startswith("DKUC") or sku.startswith("MKUC")
                 if myntra_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
-            elif current_platform != 'Meesho':
+            else:
                 # Other portals logic: CHANGES TO "in"
                 is_other_portal_royalty_sku = ("DKUC" in sku) or ("MKUC" in sku)
                 if is_other_portal_royalty_sku:
@@ -1159,7 +1159,7 @@ if main_mode == "Single Product Calculation":
                             else:
                                 st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
                 
-                elif platform_selector != 'Myntra':
+                else: # --- (CHANGED) All other platforms, including Meesho ---
                     # Other portals logic: CHANGES TO "in"
                     is_other_portal_royalty_sku = selected_sku and (("DKUC" in selected_sku) or ("MKUC" in selected_sku))
                     if is_other_portal_royalty_sku:
