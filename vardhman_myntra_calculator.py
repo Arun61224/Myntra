@@ -403,7 +403,7 @@ def perform_calculations(mrp, discount,
         ro_tax = round(ro_base * 0.14)
         gt_charge = ro_base + ro_tax
             
-            marketing_fee_base = 0.0
+        marketing_fee_base = 0.0
         total_fixed_charge = gt_charge
         royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
@@ -420,12 +420,12 @@ def perform_calculations(mrp, discount,
         
         jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
-            jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
+        jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
             
-            total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
+        total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
         
         final_commission = jiomart_comm_fee_base 
-            total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
+        total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
         gt_charge = total_fixed_charge 
         
         royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
