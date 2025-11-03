@@ -1081,23 +1081,36 @@ if calculation_mode == 'A. Single Product Calculation':
     
     # --- (NEW) SKU Lookup UI ---
     if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
-        # --- (MODIFICATION) Changed from text_input to selectbox ---
-        sku_options = ["Select SKU..."] + st.session_state.sku_df['seller sku code'].unique().tolist()
-        st.selectbox(
-            "**Fetch by SKU:**",
-            options=sku_options,
-            key="sku_select_key", # (MODIFICATION) New key
-            on_change=lookup_sku,
-            help="Select a Seller SKU Code to fetch details."
-        )
-        # --- End of Modification ---
         
-        # Display the message (success or error)
+        # --- (MODIFICATION) Split into two columns ---
+        sku_lookup_col1, sku_lookup_col2 = st.columns(2)
+        
+        with sku_lookup_col1:
+            sku_options = ["Select SKU..."] + st.session_state.sku_df['seller sku code'].unique().tolist()
+            st.selectbox(
+                "**Fetch by SKU:**",
+                options=sku_options,
+                key="sku_select_key",
+                on_change=lookup_sku,
+                help="Select a Seller SKU Code to fetch details."
+            )
+        
+        with sku_lookup_col2:
+            # (NEW) Display Style Name in a disabled text box
+            style_name_to_display = st.session_state.get('fetched_style_name', '')
+            st.text_input(
+                "**Style Name:**",
+                value=style_name_to_display,
+                disabled=True,
+                key="style_name_display"
+            )
+        # --- End of Modification ---
+
+        # (MODIFIED) Only display error/warning messages
         if 'sku_message' in st.session_state and st.session_state.sku_message:
-            if "✅" in st.session_state.sku_message:
-                st.success(st.session_state.sku_message)
-            else:
+            if "✅" not in st.session_state.sku_message: # Only show if it's NOT the success message
                 st.warning(st.session_state.sku_message)
+
     elif platform_selector == 'Myntra':
         st.info("Upload the 'List of SKU.csv' file at the top of the page to enable SKU lookup.")
 
@@ -1674,4 +1687,3 @@ elif calculation_mode == 'B. Bulk Processing (Excel)':
         except Exception as e:
             st.error(f"An error occurred during file processing: {e}")
             st.info("Please ensure your column names match the template and the data is in the correct format.")
-
