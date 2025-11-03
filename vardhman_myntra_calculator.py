@@ -354,10 +354,10 @@ def perform_calculations(mrp, discount,
     elif platform == 'Myntra':
         
         gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, taxable_amount_value) 
-            
-            yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value) 
+        
+        yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value) 
 
-            total_fixed_charge = gt_charge + yk_fixed_fee 
+        total_fixed_charge = gt_charge + yk_fixed_fee 
         
         seller_price = customer_paid_amount - gt_charge # Use customer_paid_amount
         
