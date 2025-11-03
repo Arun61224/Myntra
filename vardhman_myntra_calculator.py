@@ -997,6 +997,13 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         # --- IMPORTANT: Normalize column names from CSV ---
         df.columns = [str(col).strip().lower() for col in df.columns]
         
+        # --- (NEW FIX) ---
+        # Strip whitespace from all string/object columns
+        # This solves the problem of " YK" not matching "YK"
+        for col in df.select_dtypes(['object']):
+            df[col] = df[col].str.strip()
+        # --- (END NEW FIX) ---
+
         # Check for required columns (lowercase)
         required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name']
         if all(col in df.columns for col in required_sku_cols):
@@ -1064,12 +1071,14 @@ if calculation_mode == 'A. Single Product Calculation':
             sku_df = st.session_state.sku_df
             # Find the SKU (case-insensitive)
             # Make sure both columns are string and lowercase for comparison
+            # Note: sku_df['seller sku code'] is already stripped from file loading
             result = sku_df[sku_df['seller sku code'].astype(str).str.lower() == sku.lower()]
             
             if not result.empty:
+                # Note: All these values are already stripped from file loading
                 st.session_state.fetched_brand = result.iloc[0]['brand']
                 st.session_state.fetched_category = result.iloc[0]['article type']
-                st.session_state.fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender'
+                st.session_state.fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender' header
                 st.session_state.fetched_style_name = result.iloc[0]['style name']
                 st.session_state.sku_message = f"✅ Fetched: {st.session_state.fetched_style_name}"
             else:
@@ -1086,6 +1095,7 @@ if calculation_mode == 'A. Single Product Calculation':
         sku_lookup_col1, sku_lookup_col2 = st.columns(2)
         
         with sku_lookup_col1:
+            # Note: 'seller sku code' is already stripped from file loading
             sku_options = ["Select SKU..."] + st.session_state.sku_df['seller sku code'].unique().tolist()
             st.selectbox(
                 "**Fetch by SKU:**",
@@ -1141,7 +1151,7 @@ if calculation_mode == 'A. Single Product Calculation':
         # 1. Brand
         brand_options = list(MYNTRA_COMMISSION_DATA.keys())
         # --- (MODIFIED) Set index based on fetched SKU ---
-        fetched_brand = st.session_state.get('fetched_brand')
+        fetched_brand = st.session_state.get('fetched_brand') # This is now stripped
         brand_index = 0
         if fetched_brand and fetched_brand in brand_options:
             brand_index = brand_options.index(fetched_brand)
@@ -1156,7 +1166,7 @@ if calculation_mode == 'A. Single Product Calculation':
         try:
             category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
             # --- (MODIFIED) Set index based on fetched SKU ---
-            fetched_category = st.session_state.get('fetched_category')
+            fetched_category = st.session_state.get('fetched_category') # This is now stripped
             category_index = 0
             if fetched_category and fetched_category in category_options:
                 category_index = category_options.index(fetched_category)
@@ -1184,7 +1194,7 @@ if calculation_mode == 'A. Single Product Calculation':
         try:
             gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
             # --- (MODIFIED) Set index based on fetched SKU ---
-            fetched_gender = st.session_state.get('fetched_gender')
+            fetched_gender = st.session_state.get('fetched_gender') # This is now stripped
             gender_index = 0
             # Check fetched_gender against the options
             if fetched_gender and fetched_gender in gender_options:
