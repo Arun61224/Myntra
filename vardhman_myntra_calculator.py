@@ -386,29 +386,9 @@ def perform_calculations(mrp, discount,
         commission_base = customer_paid_amount * commission_rate # Use customer_paid_amount
         commission_tax = commission_base * 0.18
         final_commission = commission_base + commission_tax
-            
-            royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, sale_price, apply_kuchipoo_royalty) 
-            
-            
-            sale_price = seller_price 
-            
-            
-        elif platform == 'FirstCry':
-            commission_rate = 0.42
-            final_commission = sale_price * commission_rate
-            gt_charge = 0.0
-            marketing_fee_base = 0.0
-            total_fixed_charge = 0.0
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0 
-
-        elif platform == 'Ajio':
-            commission_rate = 0.20
-            commission_base = sale_price * commission_rate
-            commission_tax = commission_base * 0.18
-            final_commission = commission_base + commission_tax
-            scm_base = 95.0
-            scm_tax = scm_base * 0.18
-            gt_charge = scm_base + scm_tax
+        scm_base = 95.0
+        scm_tax = scm_base * 0.18
+        gt_charge = scm_base + scm_tax
         marketing_fee_base = 0.0
         total_fixed_charge = gt_charge
         royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
@@ -1070,6 +1050,7 @@ if new_mrp > 0 and product_cost > 0:
         st.code(traceback.format_exc())
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
 
