@@ -1380,28 +1380,27 @@ elif main_mode == "Bulk Calculation":
     bulk_jiomart_benefit_rate = 0.0
 
     if bulk_calc_mode == 'Check With Selling Price':
-        st.info("For 'Check With Selling Price' mode, please ensure your file has a 'selling_price' column.")
+        pass # --- (REMOVED) st.info("For 'Check With Selling Price' mode, please ensure your file has a 'selling_price' column.") ---
     else: # Check With Cost Price
         bulk_target_margin = st.number_input("Target Margin Amount (₹) (per SKU)", min_value=0.0, value=100.0, step=10.0)
 
     # --- Platform-specific Inputs for Bulk ---
     if bulk_platform == 'Jiomart' or bulk_platform == 'Consolidated':
-        st.info("For Jiomart rows, please ensure your file contains `jiomart_category`, `product_weight_kg`, and `shipping_zone` columns.")
+        # --- (REMOVED) st.info("For Jiomart rows, please ensure...") ---
         bulk_jiomart_benefit_rate = st.number_input(
             "Default Jiomart Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f",
             help="This flat benefit rate will be applied to all Jiomart SKUs."
         ) / 100.0
     
     if bulk_platform == 'Myntra' or bulk_platform == 'Consolidated':
-        st.info("For Myntra rows, please ensure your file contains `brand`, `article_type`, and `gender` columns.")
+        pass # --- (REMOVED) st.info("For Myntra rows, please ensure...") ---
 
     if bulk_platform == 'Meesho' or bulk_platform == 'Consolidated':
         bulk_meesho_charge_rate = st.number_input(
             "Default Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
             help="This charge % will be applied to all Meesho SKUs."
         ) / 100.0
-        if bulk_calc_mode == 'Check With Selling Price':
-            st.info(f"For Meesho 'Check With Selling Price', the 'selling_price' column will be used as the Wrong/Defective Price (WDP).")
+        # --- (REMOVED) st.info(f"For Meesho 'Profit Calculation', ...") ---
 
     st.divider()
 
