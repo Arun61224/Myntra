@@ -436,13 +436,13 @@ def perform_calculations(mrp, discount,
     # tcs = tax_amount * 0.10 
 
     if platform == 'Jiomart':
-        total_deductions = total_platform_deduction + royalty_fee 
+        total_deductions = total_platform_deduction 
     elif platform == 'Myntra':
          total_deductions = final_commission + gt_charge + yk_fixed_fee
     elif platform == 'Meesho':
         total_deductions = final_commission 
     else: 
-        total_deductions = final_commission + royalty_fee + marketing_fee_base + gt_charge
+        total_deductions = final_commission + marketing_fee_base + gt_charge
         
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
     net_profit = settled_amount - product_cost
