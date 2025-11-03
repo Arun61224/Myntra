@@ -979,13 +979,14 @@ with sku_col_2:
     if 'sku_df' in st.session_state:
         # Clear all related SKU session state keys
         def clear_sku_data():
+            # (MRP/ID FIX 1) Clear all related keys
             st.session_state.pop('sku_df', None)
             st.session_state.pop('fetched_brand', None)
             st.session_state.pop('fetched_category', None)
             st.session_state.pop('fetched_gender', None)
             st.session_state.pop('fetched_style_name', None)
             st.session_state.pop('fetched_style_id', None)
-            st.session_state.pop('fetched_mrp', None) # (MRP CHANGE 1)
+            st.session_state.pop('fetched_mrp', None)
             st.session_state.pop('sku_message', None)
             st.session_state.pop('sku_input_key', None) 
             st.session_state.pop('sku_select_key', None)
@@ -997,8 +998,10 @@ with sku_col_2:
                 del st.session_state.myntra_cat_v3
             if 'myntra_gen_v3' in st.session_state:
                 del st.session_state.myntra_gen_v3
-            if 'new_mrp' in st.session_state: # (MRP CHANGE 2)
+            if 'new_mrp' in st.session_state:
                 del st.session_state.new_mrp
+            if 'style_id_display' in st.session_state:
+                del st.session_state.style_id_display
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
@@ -1019,14 +1022,14 @@ if sku_file is not None and 'sku_df' not in st.session_state:
 
         # Check for required columns (lowercase)
         required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name', 'style id']
-        # (MRP CHANGE 3) Note: 'mrp' is NOT required, we will check for it later
         
         if all(col in df.columns for col in required_sku_cols):
             # Store in session state
             st.session_state.sku_df = df
             st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature in Single Product mode.")
-            if 'mrp' not in df.columns:
-                st.warning("Note: 'mrp' column not found in your CSV. MRP auto-fetch will be disabled.")
+            # (MRP/ID FIX 2) Check for 'product mrp' (after cleaning)
+            if 'product mrp' not in df.columns:
+                st.warning("Note: 'Product MRP' column not found in your CSV. MRP auto-fetch will be disabled.")
         else:
             missing_cols = [col for col in required_sku_cols if col not in df.columns]
             st.error(f"File is missing required columns. Missing: {', '.join(missing_cols)}")
@@ -1083,18 +1086,20 @@ if calculation_mode == 'A. Single Product Calculation':
             st.session_state.fetched_gender = None
             st.session_state.fetched_style_name = None
             st.session_state.fetched_style_id = None
-            st.session_state.fetched_mrp = None # (MRP CHANGE 4)
+            st.session_state.fetched_mrp = None
             st.session_state.sku_message = None
             
-            # (NEW) Also clear the widget keys
+            # (MRP/ID FIX 3) Clear all widget keys
             if 'myntra_brand_v3' in st.session_state:
                 del st.session_state.myntra_brand_v3
             if 'myntra_cat_v3' in st.session_state:
                 del st.session_state.myntra_cat_v3
             if 'myntra_gen_v3' in st.session_state:
                 del st.session_state.myntra_gen_v3
-            if 'new_mrp' in st.session_state: # (MRP CHANGE 5)
+            if 'new_mrp' in st.session_state:
                 del st.session_state.new_mrp
+            if 'style_id_display' in st.session_state:
+                del st.session_state.style_id_display
             return
 
         if 'sku_df' in st.session_state:
@@ -1111,10 +1116,10 @@ if calculation_mode == 'A. Single Product Calculation':
                 fetched_style_name = result.iloc[0]['style name']
                 fetched_style_id = result.iloc[0]['style id']
                 
-                # (MRP CHANGE 6) Fetch MRP only if column exists
+                # (MRP/ID FIX 4) Fetch MRP using the correct cleaned name 'product mrp'
                 fetched_mrp = None
-                if 'mrp' in sku_df.columns:
-                    mrp_val = result.iloc[0]['mrp']
+                if 'product mrp' in sku_df.columns:
+                    mrp_val = result.iloc[0]['product mrp']
                     # Try to convert to float, ignore if it fails
                     try:
                         fetched_mrp = float(mrp_val)
@@ -1122,14 +1127,14 @@ if calculation_mode == 'A. Single Product Calculation':
                         fetched_mrp = None # Failed conversion
 
                 # --- (THIS IS THE FIX) ---
-                # Set the session state keys for the selectbox widgets
+                # Set the session state keys for the widgets
                 st.session_state.myntra_brand_v3 = fetched_brand
                 st.session_state.myntra_cat_v3 = fetched_category
                 st.session_state.myntra_gen_v3 = fetched_gender
+                st.session_state.style_id_display = fetched_style_id # Set Style ID box
                 
-                # (MRP CHANGE 7) Set the MRP key
                 if fetched_mrp is not None:
-                    st.session_state.new_mrp = fetched_mrp
+                    st.session_state.new_mrp = fetched_mrp # Set MRP box
                 # --- (END OF FIX) ---
 
                 # Store for other potential uses
@@ -1146,7 +1151,7 @@ if calculation_mode == 'A. Single Product Calculation':
                 st.session_state.fetched_gender = None
                 st.session_state.fetched_style_name = None
                 st.session_state.fetched_style_id = None
-                st.session_state.fetched_mrp = None # (MRP CHANGE 8)
+                st.session_state.fetched_mrp = None
                 st.session_state.sku_message = f"SKU '{sku}' not found."
     
     # --- (NEW) SKU Lookup UI ---
@@ -1167,13 +1172,12 @@ if calculation_mode == 'A. Single Product Calculation':
             )
         
         with sku_lookup_col2:
-            # Fetch 'fetched_style_id'
-            style_id_to_display = st.session_state.get('fetched_style_id', '')
+            # (MRP/ID FIX 5) value is set by `lookup_sku` setting the key
             st.text_input(
-                "**Style ID:**", # Label changed
-                value=style_id_to_display, # Value changed
+                "**Style ID:**",
+                value="", # Default value, will be overwritten by key
                 disabled=True,
-                key="style_id_display" # Key changed
+                key="style_id_display" # This key is set in lookup_sku
             )
         # --- End of Modification ---
 
@@ -1326,7 +1330,7 @@ if calculation_mode == 'A. Single Product Calculation':
     # --- MRP/Discount/WDP Inputs ---
     col_mrp_in, col_price_in = st.columns(2)
     
-    # (MRP CHANGE 9) Default value ab 2500.0 hai, lekin agar key 'new_mrp' set hai (lookup se), toh woh value use hogi
+    # (MRP/ID FIX 6) Default value ab 2500.0 hai, lekin agar key 'new_mrp' set hai (lookup se), toh woh value use hogi
     new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, step=100.0, key="new_mrp")
     
     new_discount = 0.0
