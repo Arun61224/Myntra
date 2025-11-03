@@ -324,6 +324,23 @@ def perform_calculations(mrp, discount,
         sale_price = customer_paid_amount
         discount = mrp - sale_price 
 
+    else:
+        sale_price = mrp - discount 
+        
+        if sale_price < 0:
+            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) 
+
+        customer_paid_amount = sale_price 
+
+    # --- (MOVED) COMMON TAX CALCULATION ---
+    taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
+    tax_amount = customer_paid_amount - taxable_amount_value
+    tds = taxable_amount_value * 0.001
+    tcs = tax_amount * 0.10 
+    # --- (END MOVED BLOCK) ---
+
+    # --- PLATFORM SPECIFIC FEES ---
+    if platform == 'Meesho':
         commission_rate = meesho_charge_rate
         commission_base = customer_paid_amount * commission_rate
         commission_tax = commission_base * GST_RATE_FEES
@@ -334,31 +351,41 @@ def perform_calculations(mrp, discount,
         royalty_fee = 0.0
         total_fixed_charge = 0.0
 
-    else:
-        sale_price = mrp - discount 
+    elif platform == 'Myntra':
         
-        if sale_price < 0:
-            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) 
-
-        customer_paid_amount = sale_price 
-
-        taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
-
-        if platform == 'Myntra':
-            
-            gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, taxable_amount_value) 
+        gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, taxable_amount_value) 
             
             yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value) 
 
             total_fixed_charge = gt_charge + yk_fixed_fee 
-            
-            seller_price = sale_price - gt_charge 
-            
-            commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) 
+        
+        seller_price = customer_paid_amount - gt_charge # Use customer_paid_amount
+        
+        commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) 
             
             commission_base = seller_price * commission_rate
             commission_tax = commission_base * GST_RATE_FEES
-            final_commission = commission_base + commission_tax
+        final_commission = commission_base + commission_tax
+        
+        royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) # Use customer_paid_amount
+        
+        
+        sale_price = seller_price # Override sale_price for return
+            
+            
+    elif platform == 'FirstCry':
+        commission_rate = 0.42
+        final_commission = customer_paid_amount * commission_rate # Use customer_paid_amount
+        gt_charge = 0.0
+        marketing_fee_base = 0.0
+        total_fixed_charge = 0.0
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
+
+    elif platform == 'Ajio':
+        commission_rate = 0.20
+        commission_base = customer_paid_amount * commission_rate # Use customer_paid_amount
+        commission_tax = commission_base * 0.18
+        final_commission = commission_base + commission_tax
             
             royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, sale_price, apply_kuchipoo_royalty) 
             
@@ -382,51 +409,51 @@ def perform_calculations(mrp, discount,
             scm_base = 95.0
             scm_tax = scm_base * 0.18
             gt_charge = scm_base + scm_tax
-            marketing_fee_base = 0.0
-            total_fixed_charge = gt_charge
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0 
+        marketing_fee_base = 0.0
+        total_fixed_charge = gt_charge
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
-        elif platform == 'Snapdeal':
-            commission_rate = 0.24
-            commission_base = round(sale_price * commission_rate)
-            commission_tax = round(commission_base * GST_RATE_FEES)
-            final_commission = commission_base + commission_tax
-            
-            ro_base = round(sale_price * 0.08)
-            ro_tax = round(ro_base * 0.14)
-            gt_charge = ro_base + ro_tax
+    elif platform == 'Snapdeal':
+        commission_rate = 0.24
+        commission_base = round(customer_paid_amount * commission_rate) # Use customer_paid_amount
+        commission_tax = round(commission_base * GST_RATE_FEES)
+        final_commission = commission_base + commission_tax
+        
+        ro_base = round(customer_paid_amount * 0.08) # Use customer_paid_amount
+        ro_tax = round(ro_base * 0.14)
+        gt_charge = ro_base + ro_tax
             
             marketing_fee_base = 0.0
-            total_fixed_charge = gt_charge
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0 
+        total_fixed_charge = gt_charge
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
-        elif platform == 'Jiomart':
-            
-            commission_rate = get_jiomart_commission_rate(jiomart_category, sale_price) if jiomart_category else 0.0
-            jiomart_comm_fee_base = sale_price * commission_rate
-            jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(sale_price)
-            jiomart_shipping_fee_base = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone) if shipping_zone and weight_in_kg > 0 else 0.0
-            
-            jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
-            
-            jiomart_benefit_amount = -(sale_price * jiomart_benefit_rate)
-            
-            jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
+    elif platform == 'Jiomart':
+        
+        commission_rate = get_jiomart_commission_rate(jiomart_category, customer_paid_amount) if jiomart_category else 0.0 # Use customer_paid_amount
+        jiomart_comm_fee_base = customer_paid_amount * commission_rate # Use customer_paid_amount
+        jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(customer_paid_amount) # Use customer_paid_amount
+        jiomart_shipping_fee_base = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone) if shipping_zone and weight_in_kg > 0 else 0.0
+        
+        jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
+        
+        jiomart_benefit_amount = -(customer_paid_amount * jiomart_benefit_rate) # Use customer_paid_amount
+        
+        jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
             jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
             
             total_platform_deduction = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
-            
-            final_commission = jiomart_comm_fee_base 
+        
+        final_commission = jiomart_comm_fee_base 
             total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
-            gt_charge = total_fixed_charge 
-            
-            royalty_fee = sale_price * 0.10 if apply_royalty == 'Yes' else 0.0
+        gt_charge = total_fixed_charge 
+        
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
             
-    tax_amount = customer_paid_amount - taxable_amount_value
-    tds = taxable_amount_value * 0.001
-    tcs = tax_amount * 0.10 
+    # tax_amount = customer_paid_amount - taxable_amount_value
+    # tds = taxable_amount_value * 0.001
+    # tcs = tax_amount * 0.10 
 
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction + royalty_fee 
@@ -1043,5 +1070,6 @@ if new_mrp > 0 and product_cost > 0:
         st.code(traceback.format_exc())
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
 
