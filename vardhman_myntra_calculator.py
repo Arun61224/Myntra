@@ -186,17 +186,17 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
 
 # --- (MODIFIED) Helper function to get Myntra Fixed Fee (incl. GST) ---
 # Slabs updated as per user request (50, 80, 145, 175)
-def calculate_myntra_new_fixed_fee(brand, sale_price):
+def calculate_myntra_new_fixed_fee(brand, taxable_value_for_slab):
     # --- (MODIFICATION 1 START) ---
     # Re-implementing GT Charge as per user request
     base_fee = 0.0 # Initialize
     
-    # This charge applies to ALL Myntra brands based on Sale Price (Invoice Value)
-    if sale_price <= 500:
+    # This charge applies to ALL Myntra brands based on Taxable Value
+    if taxable_value_for_slab <= 500:
         base_fee = 50.0
-    elif sale_price <= 1000:
+    elif taxable_value_for_slab <= 1000:
         base_fee = 80.0
-    elif sale_price <= 2000:
+    elif taxable_value_for_slab <= 2000:
         base_fee = 145.0
     else: # 2000+
         base_fee = 175.0
@@ -224,17 +224,17 @@ def calculate_myntra_new_royalty(brand, sale_price, apply_kuchipoo_royalty_flag)
     return sale_price * royalty_rate
 
 # --- (NEW) Helper function to get Myntra YK Fixed Fee (incl. GST) ---
-def calculate_myntra_yk_fixed_fee(brand, sale_price):
+def calculate_myntra_yk_fixed_fee(brand, taxable_value_for_slab):
     """
     Calculates the YK-specific fixed fee (27/45 + 18% GST).
     This fee ONLY applies to 'YK', 'YK Disney', and 'YK Marvel'.
-    The fee is based on the 'Sale Price' (Invoice Value).
+    The fee is based on the 'Taxable Value'.
     """
     if brand not in ["YK", "YK Disney", "YK Marvel"]:
         return 0.0 # No fee for other brands
 
     base_fee = 0.0
-    if sale_price <= 1000:
+    if taxable_value_for_slab <= 1000:
         base_fee = 27.0
     else: # 1000+
         base_fee = 45.0
@@ -388,23 +388,29 @@ def perform_calculations(mrp, discount,
         # Invoice value is Sale Price for all non-Meesho platforms
         customer_paid_amount = sale_price # e.g., 1005
 
+        # --- (FIX START) Calculate Taxable Value FIRST ---
+        # Yeh zaroori hai taaki hum fee slabs ke liye Taxable Value use kar sakein
+        taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
+        # --- (FIX END) ---
+
         if platform == 'Myntra':
             # --- (MODIFICATION 2 START) ---
             
-            # 1. Calculate "GT Charge" (Fee 1) based on Invoice Value (sale_price)
+            # 1. Calculate "GT Charge" (Fee 1) based on Taxable Value
             # Yeh function ab naye slabs (50, 80, 145, 175) + 18% GST use kar raha hai
-            gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, sale_price) # e.g., 171.1
+            # (FIX) `sale_price` ki jagah `taxable_amount_value` pass kiya
+            gt_charge = calculate_myntra_new_fixed_fee(myntra_new_brand, taxable_amount_value) # e.g., 94.40
             
-            # 2. (NEW) Calculate YK-specific Fixed Fee (Fee 2)
-            # This is the 27/45 + 18% GST fee for YK brands
-            yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, sale_price) # e.g., 31.86 if <= 1000
+            # 2. (NEW) Calculate YK-specific Fixed Fee (Fee 2) based on Taxable Value
+            # (FIX) `sale_price` ki jagah `taxable_amount_value` pass kiya
+            yk_fixed_fee = calculate_myntra_yk_fixed_fee(myntra_new_brand, taxable_amount_value) # e.g., 31.86
 
             # 3. (NEW) Total fixed charge is the sum of both
             total_fixed_charge = gt_charge + yk_fixed_fee # For display in box 2
             
             # 4. Calculate "Seller Price" (Base for Commission)
             # (USER REQUEST CHANGE) Seller Price = Invoice Value - GT Charge
-            seller_price = sale_price - gt_charge # e.g., 1005 - 171.1
+            seller_price = sale_price - gt_charge # e.g., 1005 - 94.40
             
             # 5. Get Commission Rate based on Seller Price
             commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) # Based on new seller_price
@@ -422,7 +428,7 @@ def perform_calculations(mrp, discount,
             
             # 9. (NEW) Overwrite sale_price to be returned
             # This is what will be SHOWN as "Sale Price"
-            sale_price = seller_price # e.g., 833.9
+            sale_price = seller_price # e.g., 910.6
             
             # --- (MODIFICATION 2 END) ---
             
@@ -496,7 +502,8 @@ def perform_calculations(mrp, discount,
             
     # --- COMMON TAX AND FINAL SETTLEMENT LOGIC ---
     # Based on Customer Paid Amount (Invoice Value)
-    taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
+    # (FIX) Yeh line neeche se yahaan move ho gayi hai (upar)
+    # taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount) 
     tax_amount = customer_paid_amount - taxable_amount_value
     tds = taxable_amount_value * 0.001
     tcs = tax_amount * 0.10 # Your script had 0.10 (10%)
