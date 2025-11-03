@@ -527,15 +527,15 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
-st.markdown("##### **(Optional) Load Master SKU File**")
+st.markdown("##### **(Optional) Load SKU File (CSV or XLSX)**")
 
 sku_col_1, sku_col_2 = st.columns([3, 1])
 
 with sku_col_1:
     sku_file = st.file_uploader(
-        "Upload 'Master_SKU_File.csv' or '.xlsx' file:", 
+        "Upload your platform-specific SKU file:", 
         type=['csv', 'xlsx'],
-        help="Upload the consolidated Master SKU file. This will allow you to fetch details for ALL portals."
+        help="Upload your CSV or Excel file. The app will try to read it based on the platform selected below."
     )
 
 with sku_col_2:
@@ -565,7 +565,6 @@ with sku_col_2:
                 del st.session_state.style_id_display
             if 'single_cost' in st.session_state: 
                 del st.session_state.single_cost
-            # (NEW) Clear Jiomart keys
             if 'jiomart_category_selector' in st.session_state:
                 del st.session_state.jiomart_category_selector
             if 'single_weight' in st.session_state:
@@ -577,35 +576,16 @@ with sku_col_2:
 
 if sku_file is not None and 'sku_df' not in st.session_state:
     try:
-        # --- (NEW) Read CSV or XLSX ---
         if sku_file.name.endswith('.xlsx'):
             df = pd.read_excel(sku_file, dtype=str, engine='openpyxl')
         else:
             df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
         
-        # --- (NEW) Clean column headers ---
         df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
         
-        for col in df.columns:
-            df[col] = df[col].str.strip()
+        st.session_state.sku_df = df
+        st.success(f"Successfully loaded {len(df)} SKUs from {sku_file.name}. You can now use the 'Fetch by SKU' feature.")
 
-        # --- (NEW) Updated required columns ---
-        required_sku_cols = ['seller_sku_code', 'product_mrp', 'product_cost']
-        
-        if all(col in df.columns for col in required_sku_cols):
-            st.session_state.sku_df = df
-            st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature.")
-            
-            # --- (NEW) Optional column checks ---
-            if 'myntra_brand' not in df.columns or 'myntra_article_type' not in df.columns:
-                st.warning("Note: Myntra-specific columns (e.g., 'myntra_brand') not found. Myntra auto-fetch will be limited.")
-            
-            if 'jiomart_category' not in df.columns or 'product_weight_kg' not in df.columns:
-                st.warning("Note: Jiomart-specific columns (e.g., 'jiomart_category') not found. Jiomart auto-fetch will be limited.")
-        else:
-            missing_cols = [col for col in required_sku_cols if col not in df.columns]
-            st.error(f"Master file is missing required columns. Zaroori hain: {', '.join(missing_cols)}")
-    
     except Exception as e:
         st.error(f"Error loading SKU file: {e}")
 
@@ -625,13 +605,12 @@ platform_selector = st.radio(
     "Select Platform:",
     ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
     index=0, horizontal=True,
-    key="platform_selector_key" # (NEW) Added key
+    key="platform_selector_key" 
 )
 
 def lookup_sku():
     sku = st.session_state.get('sku_select_key', '').strip() 
     
-    # --- (NEW) Clear ALL dynamic keys first ---
     if 'myntra_brand_v3' in st.session_state: del st.session_state.myntra_brand_v3
     if 'myntra_cat_v3' in st.session_state: del st.session_state.myntra_cat_v3
     if 'myntra_gen_v3' in st.session_state: del st.session_state.myntra_gen_v3
@@ -648,64 +627,120 @@ def lookup_sku():
 
     if 'sku_df' in st.session_state:
         sku_df = st.session_state.sku_df
-        # --- (NEW) Use new header name ---
-        result = sku_df[sku_df['seller_sku_code'].astype(str).str.lower() == sku.lower()]
+        platform = st.session_state.get('platform_selector_key', 'Myntra')
+
+        # --- (NEW) DYNAMIC HEADER MAPPING ---
+        sku_col_name = None
+        if 'seller_sku_code' in sku_df.columns:
+            sku_col_name = 'seller_sku_code'
+        elif 'sku_code' in sku_df.columns: # For Snapdeal
+            sku_col_name = 'sku_code'
+        
+        if not sku_col_name:
+            st.session_state.sku_message = "SKU column not found (need 'seller_sku_code' or 'sku_code')"
+            return
+
+        mrp_col_name = None
+        if 'product_mrp' in sku_df.columns: # Master file
+            mrp_col_name = 'product_mrp'
+        elif 'mrp' in sku_df.columns: # Jiomart, Ajio, etc.
+            mrp_col_name = 'mrp'
+        elif 'product_mrp_' in sku_df.columns: # Myntra old file
+             mrp_col_name = 'product_mrp_' 
+        
+        if not mrp_col_name:
+            st.session_state.sku_message = "MRP column not found (need 'product_mrp' or 'mrp')"
+            return
+
+        cost_col_name = None
+        if 'product_cost' in sku_df.columns: # Master or Myntra
+            cost_col_name = 'product_cost'
+        elif 'cost_price' in sku_df.columns: # Jiomart, Ajio, etc.
+            cost_col_name = 'cost_price'
+
+        if not cost_col_name:
+            st.session_state.sku_message = "Cost column not found (need 'product_cost' or 'cost_price')"
+            return
+        # --- (END DYNAMIC HEADER MAPPING) ---
+        
+        result = sku_df[sku_df[sku_col_name].astype(str).str.lower() == sku.lower()]
         
         if not result.empty:
             row = result.iloc[0]
             
-            # --- 1. Common Fields (All Platforms) ---
             try:
-                st.session_state.new_mrp = float(row['product_mrp'])
+                st.session_state.new_mrp = float(row[mrp_col_name])
             except (ValueError, TypeError, KeyError): pass
             
             try:
-                st.session_state.single_cost = float(row['product_cost'])
+                st.session_state.single_cost = float(row[cost_col_name])
             except (ValueError, TypeError, KeyError): pass
 
             if 'style_id' in sku_df.columns:
                 st.session_state.style_id_display = row['style_id']
 
-            # --- 2. Platform-Specific Fields ---
-            platform = st.session_state.get('platform_selector_key', 'Myntra')
-            
             if platform == 'Myntra':
                 if 'myntra_brand' in sku_df.columns:
                     st.session_state.myntra_brand_v3 = row['myntra_brand']
+                elif 'brand' in sku_df.columns: # Fallback for old Myntra file
+                     st.session_state.myntra_brand_v3 = row['brand']
+                
                 if 'myntra_article_type' in sku_df.columns:
                     st.session_state.myntra_cat_v3 = row['myntra_article_type']
+                elif 'article_type' in sku_df.columns: # Fallback
+                     st.session_state.myntra_cat_v3 = row['article_type']
+
                 if 'myntra_gender' in sku_df.columns:
                     st.session_state.myntra_gen_v3 = row['myntra_gender']
+                elif 'gender' in sku_df.columns: # Fallback
+                    st.session_state.myntra_gen_v3 = row['gender']
                     
             elif platform == 'Jiomart':
                 if 'jiomart_category' in sku_df.columns:
                     st.session_state.jiomart_category_selector = row['jiomart_category']
+                elif 'category' in sku_df.columns: # Fallback
+                    st.session_state.jiomart_category_selector = row['category']
+                
                 if 'product_weight_kg' in sku_df.columns:
-                    try:
-                        st.session_state.single_weight = float(row['product_weight_kg'])
+                    try: st.session_state.single_weight = float(row['product_weight_kg'])
                     except (ValueError, TypeError): pass
+                elif 'product_weight' in sku_df.columns: # Fallback
+                     try: st.session_state.single_weight = float(row['product_weight']) / 1000.0 
+                     except (ValueError, TypeError): pass
+
                 if 'shipping_zone' in sku_df.columns:
                     st.session_state.single_zone = row['shipping_zone']
 
-            st.session_state.sku_message = f"✅ Fetched: {row.get('style_name', sku)}"
+            style_name_col = 'style_name' if 'style_name' in sku_df.columns else sku_col_name
+            st.session_state.sku_message = f"✅ Fetched: {row.get(style_name_col, sku)}"
         else:
             st.session_state.sku_message = f"SKU '{sku}' not found."
 
-# --- (MODIFIED) SKU lookup UI ab sab platforms ke liye hai ---
 if 'sku_df' in st.session_state:
     
     sku_lookup_col1, sku_lookup_col2 = st.columns(2)
     
     with sku_lookup_col1:
-        # --- (NEW) Use new header name ---
-        sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df['seller_sku_code'].unique().tolist())
-        st.selectbox(
-            "**Fetch by SKU:**",
-            options=sku_options,
-            key="sku_select_key",
-            on_change=lookup_sku,
-            help="Select a Seller SKU Code to fetch details."
-        )
+        sku_df = st.session_state.sku_df 
+        
+        sku_col_name = None
+        if 'seller_sku_code' in sku_df.columns:
+            sku_col_name = 'seller_sku_code'
+        elif 'sku_code' in sku_df.columns: # For Snapdeal
+            sku_col_name = 'sku_code'
+        
+        if sku_col_name:
+            sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df[sku_col_name].unique().tolist())
+            st.selectbox(
+                "**Fetch by SKU:**",
+                options=sku_options,
+                key="sku_select_key",
+                on_change=lookup_sku,
+                help="Select a Seller SKU Code to fetch details."
+            )
+        else:
+            st.error("Could not find a valid SKU column in your file (e.g., 'seller_sku_code' or 'sku_code'). Please check your file.")
+
     
     with sku_lookup_col2:
         st.text_input(
@@ -719,7 +754,6 @@ if 'sku_df' in st.session_state:
         if "✅" not in st.session_state.sku_message: 
             st.warning(st.session_state.sku_message)
 
-# --- (MODIFIED) Message bhi ab sab platforms ke liye hai ---
 if 'sku_df' not in st.session_state:
     st.info("Upload the 'Master_SKU_File.csv' or '.xlsx' file at the top of the page to enable SKU lookup.")
 
