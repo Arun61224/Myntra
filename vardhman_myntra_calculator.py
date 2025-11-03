@@ -623,7 +623,7 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 if myntra_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
             else:
-                # Other portals logic: CHANGES TO "in"
+                # Other portals logic: CHANGES TO "in" and INCLUDES MEESHO
                 is_other_portal_royalty_sku = ("DKUC" in sku) or ("MKUC" in sku)
                 if is_other_portal_royalty_sku:
                     apply_royalty = 'Yes'
