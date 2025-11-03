@@ -696,7 +696,8 @@ def lookup_sku():
             st.session_state.fetched_product_cost = None 
             st.session_state.sku_message = f"SKU '{sku}' not found."
 
-if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
+# --- (MODIFIED) SKU lookup UI ab sab platforms ke liye hai ---
+if 'sku_df' in st.session_state:
     
     sku_lookup_col1, sku_lookup_col2 = st.columns(2)
     
@@ -722,7 +723,8 @@ if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
         if "✅" not in st.session_state.sku_message: 
             st.warning(st.session_state.sku_message)
 
-elif platform_selector == 'Myntra':
+# --- (MODIFIED) Message bhi ab sab platforms ke liye hai ---
+if 'sku_df' not in st.session_state:
     st.info("Upload the 'List of SKU.csv' file at the top of the page to enable SKU lookup.")
 
 
@@ -829,11 +831,7 @@ elif platform_selector == 'Meesho':
     ) / 100.0
     meesho_charge_rate = meesho_charge_percent
     
-else:
-    apply_royalty = st.radio(
-        f"Royalty Fee (10% of Sale Price)?",
-        ('Yes', 'No'), index=1, horizontal=True, key="old_royalty_radio"
-    )
+# --- (DELETED) Manual radio button for other platforms ---
 
 
 col_cost, col_target = st.columns(2)
@@ -876,6 +874,7 @@ if new_mrp > 0 and product_cost > 0:
 
     try:
         apply_kuchipoo_royalty = 'No' 
+        # apply_royalty is already 'No' from line 566
         
         if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
             if myntra_new_brand == 'KUCHIPOO':
@@ -891,6 +890,22 @@ if new_mrp > 0 and product_cost > 0:
         
         elif platform_selector == 'Myntra':
             st.warning("SKU file not loaded. Automatic Kuchipoo Royalty check is disabled.")
+
+        # --- (NEW) Auto-royalty logic for OTHER platforms ---
+        elif platform_selector != 'Myntra' and 'sku_df' in st.session_state:
+            selected_sku = st.session_state.get('sku_select_key', '').strip()
+            if selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC")):
+                apply_royalty = 'Yes' # This is the key for OTHER platforms
+            
+            if selected_sku and selected_sku != "Select SKU...":
+                if apply_royalty == 'Yes':
+                    st.success(f"Auto-applied 10% Royalty (SKU: {selected_sku})")
+                else:
+                    st.info(f"No royalty applied (SKU: {selected_sku})")
+        
+        elif platform_selector != 'Myntra':
+             st.warning("SKU file not loaded. Automatic Royalty check is disabled.")
+        # --- (END NEW) ---
         
         
         if single_calc_mode == 'Target Discount':
