@@ -527,15 +527,15 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
 st.title("🛍️ " + FULL_TITLE)
 st.markdown("###### **1. Input and Configuration**")
 
-st.markdown("##### **(Optional) Load Myntra SKU Details**")
+st.markdown("##### **(Optional) Load Master SKU File**")
 
 sku_col_1, sku_col_2 = st.columns([3, 1])
 
 with sku_col_1:
     sku_file = st.file_uploader(
-        "Upload 'List of SKU.csv' file:", 
+        "Upload 'Master_SKU_File.csv' file:", 
         type=['csv'],
-        help="Upload the CSV export from 'List of SKU.xlsx'. This will allow you to fetch Brand/Category/Gender by SKU."
+        help="Upload the consolidated Master SKU file. This will allow you to fetch details for ALL portals."
     )
 
 with sku_col_2:
@@ -565,6 +565,13 @@ with sku_col_2:
                 del st.session_state.style_id_display
             if 'single_cost' in st.session_state: 
                 del st.session_state.single_cost
+            # (NEW) Clear Jiomart keys
+            if 'jiomart_category_selector' in st.session_state:
+                del st.session_state.jiomart_category_selector
+            if 'single_weight' in st.session_state:
+                del st.session_state.single_weight
+            if 'single_zone' in st.session_state:
+                del st.session_state.single_zone
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
@@ -572,25 +579,28 @@ if sku_file is not None and 'sku_df' not in st.session_state:
     try:
         df = pd.read_csv(sku_file, encoding='utf-8', dtype=str)
         
-        df.columns = [str(col).strip().lower() for col in df.columns]
+        # --- (NEW) Clean column headers ---
+        df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
         
         for col in df.columns:
             df[col] = df[col].str.strip()
 
-        required_sku_cols = ['brand', 'article type', 'seller sku code', 'gender', 'style name', 'style id']
+        # --- (NEW) Updated required columns ---
+        required_sku_cols = ['seller_sku_code', 'product_mrp', 'product_cost']
         
         if all(col in df.columns for col in required_sku_cols):
             st.session_state.sku_df = df
             st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature.")
             
-            if 'product mrp' not in df.columns:
-                st.warning("Note: 'Product MRP' column not found in your CSV. MRP auto-fetch will be disabled.")
+            # --- (NEW) Optional column checks ---
+            if 'myntra_brand' not in df.columns or 'myntra_article_type' not in df.columns:
+                st.warning("Note: Myntra-specific columns (e.g., 'myntra_brand') not found. Myntra auto-fetch will be limited.")
             
-            if 'product cost' not in df.columns:
-                st.warning("Note: 'Product cost' column not found in your CSV. Product Cost auto-fetch will be disabled.")
+            if 'jiomart_category' not in df.columns or 'product_weight_kg' not in df.columns:
+                st.warning("Note: Jiomart-specific columns (e.g., 'jiomart_category') not found. Jiomart auto-fetch will be limited.")
         else:
             missing_cols = [col for col in required_sku_cols if col not in df.columns]
-            st.error(f"File is missing required columns. Missing: {', '.join(missing_cols)}")
+            st.error(f"Master file is missing required columns. Zaroori hain: {', '.join(missing_cols)}")
     
     except Exception as e:
         st.error(f"Error loading SKU file: {e}")
@@ -610,90 +620,71 @@ st.markdown("---")
 platform_selector = st.radio(
     "Select Platform:",
     ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
-    index=0, horizontal=True
+    index=0, horizontal=True,
+    key="platform_selector_key" # (NEW) Added key
 )
 
 def lookup_sku():
     sku = st.session_state.get('sku_select_key', '').strip() 
     
+    # --- (NEW) Clear ALL dynamic keys first ---
+    if 'myntra_brand_v3' in st.session_state: del st.session_state.myntra_brand_v3
+    if 'myntra_cat_v3' in st.session_state: del st.session_state.myntra_cat_v3
+    if 'myntra_gen_v3' in st.session_state: del st.session_state.myntra_gen_v3
+    if 'new_mrp' in st.session_state: del st.session_state.new_mrp
+    if 'style_id_display' in st.session_state: del st.session_state.style_id_display
+    if 'single_cost' in st.session_state: del st.session_state.single_cost
+    if 'jiomart_category_selector' in st.session_state: del st.session_state.jiomart_category_selector
+    if 'single_weight' in st.session_state: del st.session_state.single_weight
+    if 'single_zone' in st.session_state: del st.session_state.single_zone
+    
     if not sku or sku == "Select SKU...": 
-        st.session_state.fetched_brand = None
-        st.session_state.fetched_category = None
-        st.session_state.fetched_gender = None
-        st.session_state.fetched_style_name = None
-        st.session_state.fetched_style_id = None
-        st.session_state.fetched_mrp = None
-        st.session_state.fetched_product_cost = None 
         st.session_state.sku_message = None
-        
-        if 'myntra_brand_v3' in st.session_state:
-            del st.session_state.myntra_brand_v3
-        if 'myntra_cat_v3' in st.session_state:
-            del st.session_state.myntra_cat_v3
-        if 'myntra_gen_v3' in st.session_state:
-            del st.session_state.myntra_gen_v3
-        if 'new_mrp' in st.session_state:
-            del st.session_state.new_mrp
-        if 'style_id_display' in st.session_state:
-            del st.session_state.style_id_display
-        if 'single_cost' in st.session_state: 
-            del st.session_state.single_cost
         return
 
     if 'sku_df' in st.session_state:
         sku_df = st.session_state.sku_df
-        result = sku_df[sku_df['seller sku code'].astype(str).str.lower() == sku.lower()]
+        # --- (NEW) Use new header name ---
+        result = sku_df[sku_df['seller_sku_code'].astype(str).str.lower() == sku.lower()]
         
         if not result.empty:
-            fetched_brand = result.iloc[0]['brand']
-            fetched_category = result.iloc[0]['article type']
-            fetched_gender = result.iloc[0]['gender'] 
-            fetched_style_name = result.iloc[0]['style name']
-            fetched_style_id = result.iloc[0]['style id']
+            row = result.iloc[0]
             
-            fetched_mrp = None
-            if 'product mrp' in sku_df.columns:
-                mrp_val = result.iloc[0]['product mrp']
-                try:
-                    fetched_mrp = float(mrp_val)
-                except (ValueError, TypeError):
-                    fetched_mrp = None 
+            # --- 1. Common Fields (All Platforms) ---
+            try:
+                st.session_state.new_mrp = float(row['product_mrp'])
+            except (ValueError, TypeError, KeyError): pass
             
-            fetched_product_cost = None
-            if 'product cost' in sku_df.columns:
-                cost_val = result.iloc[0]['product cost']
-                try:
-                    fetched_product_cost = float(cost_val)
-                except (ValueError, TypeError):
-                    fetched_product_cost = None
+            try:
+                st.session_state.single_cost = float(row['product_cost'])
+            except (ValueError, TypeError, KeyError): pass
 
-            st.session_state.myntra_brand_v3 = fetched_brand
-            st.session_state.myntra_cat_v3 = fetched_category
-            st.session_state.myntra_gen_v3 = fetched_gender
-            st.session_state.style_id_display = fetched_style_id 
-            
-            if fetched_mrp is not None:
-                st.session_state.new_mrp = fetched_mrp 
-            
-            if fetched_product_cost is not None: 
-                st.session_state.single_cost = fetched_product_cost 
+            if 'style_id' in sku_df.columns:
+                st.session_state.style_id_display = row['style_id']
 
-            st.session_state.fetched_brand = fetched_brand
-            st.session_state.fetched_category = fetched_category
-            st.session_state.fetched_gender = fetched_gender
-            st.session_state.fetched_style_name = fetched_style_name
-            st.session_state.fetched_style_id = fetched_style_id
-            st.session_state.fetched_mrp = fetched_mrp 
-            st.session_state.fetched_product_cost = fetched_product_cost 
-            st.session_state.sku_message = f"✅ Fetched: {fetched_style_name}" 
+            # --- 2. Platform-Specific Fields ---
+            platform = st.session_state.get('platform_selector_key', 'Myntra')
+            
+            if platform == 'Myntra':
+                if 'myntra_brand' in sku_df.columns:
+                    st.session_state.myntra_brand_v3 = row['myntra_brand']
+                if 'myntra_article_type' in sku_df.columns:
+                    st.session_state.myntra_cat_v3 = row['myntra_article_type']
+                if 'myntra_gender' in sku_df.columns:
+                    st.session_state.myntra_gen_v3 = row['myntra_gender']
+                    
+            elif platform == 'Jiomart':
+                if 'jiomart_category' in sku_df.columns:
+                    st.session_state.jiomart_category_selector = row['jiomart_category']
+                if 'product_weight_kg' in sku_df.columns:
+                    try:
+                        st.session_state.single_weight = float(row['product_weight_kg'])
+                    except (ValueError, TypeError): pass
+                if 'shipping_zone' in sku_df.columns:
+                    st.session_state.single_zone = row['shipping_zone']
+
+            st.session_state.sku_message = f"✅ Fetched: {row.get('style_name', sku)}"
         else:
-            st.session_state.fetched_brand = None
-            st.session_state.fetched_category = None
-            st.session_state.fetched_gender = None
-            st.session_state.fetched_style_name = None
-            st.session_state.fetched_style_id = None
-            st.session_state.fetched_mrp = None
-            st.session_state.fetched_product_cost = None 
             st.session_state.sku_message = f"SKU '{sku}' not found."
 
 # --- (MODIFIED) SKU lookup UI ab sab platforms ke liye hai ---
@@ -702,7 +693,8 @@ if 'sku_df' in st.session_state:
     sku_lookup_col1, sku_lookup_col2 = st.columns(2)
     
     with sku_lookup_col1:
-        sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df['seller sku code'].unique().tolist())
+        # --- (NEW) Use new header name ---
+        sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df['seller_sku_code'].unique().tolist())
         st.selectbox(
             "**Fetch by SKU:**",
             options=sku_options,
@@ -725,7 +717,7 @@ if 'sku_df' in st.session_state:
 
 # --- (MODIFIED) Message bhi ab sab platforms ke liye hai ---
 if 'sku_df' not in st.session_state:
-    st.info("Upload the 'List of SKU.csv' file at the top of the page to enable SKU lookup.")
+    st.info("Upload the 'Master_SKU_File.csv' file at the top of the page to enable SKU lookup.")
 
 
 st.markdown("##### **Configuration Settings**")
@@ -841,7 +833,7 @@ st.divider()
 
 col_mrp_in, col_price_in = st.columns(2)
 
-new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, step=100.0, key="new_mrp")
+new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, step=10.0, key="new_mrp") # Step change
 
 new_discount = 0.0
 wrong_defective_price = None
@@ -874,38 +866,35 @@ if new_mrp > 0 and product_cost > 0:
 
     try:
         apply_kuchipoo_royalty = 'No' 
-        # apply_royalty is already 'No' from line 566
+        apply_royalty = 'No' # Reset for others
         
-        if platform_selector == 'Myntra' and 'sku_df' in st.session_state:
-            if myntra_new_brand == 'KUCHIPOO':
-                selected_sku = st.session_state.get('sku_select_key', '').strip()
-                if selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC")):
+        if 'sku_df' in st.session_state:
+            selected_sku = st.session_state.get('sku_select_key', '').strip()
+            is_royalty_sku = selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC"))
+
+            if platform_selector == 'Myntra':
+                if myntra_new_brand == 'KUCHIPOO' and is_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
                 
                 if selected_sku and selected_sku != "Select SKU...":
-                    if apply_kuchipoo_royalty == 'Yes':
-                        st.success(f"Auto-applied 10% Kuchipoo Royalty (SKU: {selected_sku})")
-                    else:
-                        st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
-        
-        elif platform_selector == 'Myntra':
-            st.warning("SKU file not loaded. Automatic Kuchipoo Royalty check is disabled.")
-
-        # --- (NEW) Auto-royalty logic for OTHER platforms ---
-        elif platform_selector != 'Myntra' and 'sku_df' in st.session_state:
-            selected_sku = st.session_state.get('sku_select_key', '').strip()
-            if selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC")):
-                apply_royalty = 'Yes' # This is the key for OTHER platforms
+                    if myntra_new_brand == 'KUCHIPOO':
+                        if apply_kuchipoo_royalty == 'Yes':
+                            st.success(f"Auto-applied 10% Kuchipoo Royalty (SKU: {selected_sku})")
+                        else:
+                            st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
             
-            if selected_sku and selected_sku != "Select SKU...":
-                if apply_royalty == 'Yes':
-                    st.success(f"Auto-applied 10% Royalty (SKU: {selected_sku})")
-                else:
-                    st.info(f"No royalty applied (SKU: {selected_sku})")
-        
-        elif platform_selector != 'Myntra':
+            elif platform_selector != 'Myntra':
+                if is_royalty_sku:
+                    apply_royalty = 'Yes' # This is the key for OTHER platforms
+            
+                if selected_sku and selected_sku != "Select SKU...":
+                    if apply_royalty == 'Yes':
+                        st.success(f"Auto-applied 10% Royalty (SKU: {selected_sku})")
+                    else:
+                        st.info(f"No royalty applied (SKU: {selected_sku})")
+
+        elif 'sku_df' not in st.session_state:
              st.warning("SKU file not loaded. Automatic Royalty check is disabled.")
-        # --- (END NEW) ---
         
         
         if single_calc_mode == 'Target Discount':
@@ -940,14 +929,8 @@ if new_mrp > 0 and product_cost > 0:
          )
 
         
-        # --- (NEW) Final adjustment for Royalty ---
-        # `settled_amount` and `net_profit` from function are BEFORE royalty
-        # `royalty_fee` is the calculated royalty
-        
-        # Ab final values calculate karo
         settled_amount = settled_amount - royalty_fee
         net_profit = net_profit - royalty_fee
-        # --- (END NEW) ---
 
 
         target_profit = product_margin_target_rs
