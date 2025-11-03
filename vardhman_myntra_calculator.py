@@ -168,18 +168,18 @@ def get_myntra_new_commission_rate(brand, category, gender, seller_price):
         
         # Find the correct slab
         if brand == "KUCHIPOO":
-            if seller_price <= 200: return gender_data["0-200"]
-            elif seller_price <= 300: return gender_data["200-300"]
-            elif seller_price <= 400: return gender_data["300-400"]
-            elif seller_price <= 500: return gender_data["400-500"]
-            elif seller_price <= 800: return gender_data["500-800"]
-            else: return gender_data["800+"]
+            if seller_price <= 200: return gender_data.get("0-200", 0.0)
+            elif seller_price <= 300: return gender_data.get("200-300", 0.0)
+            elif seller_price <= 400: return gender_data.get("300-400", 0.0)
+            elif seller_price <= 500: return gender_data.get("400-500", 0.0)
+            elif seller_price <= 800: return gender_data.get("500-800", 0.0)
+            else: return gender_data.get("800+", 0.0)
         else: # YK, YK Disney, YK Marvel
-            if seller_price <= 300: return gender_data["0-300"]
-            elif seller_price <= 500: return gender_data["300-500"]
-            elif seller_price <= 1000: return gender_data["500-1000"]
-            elif seller_price <= 2000: return gender_data["1000-2000"]
-            else: return gender_data["2000+"]
+            if seller_price <= 300: return gender_data.get("0-300", 0.0)
+            elif seller_price <= 500: return gender_data.get("300-500", 0.0)
+            elif seller_price <= 1000: return gender_data.get("500-1000", 0.0)
+            elif seller_price <= 2000: return gender_data.get("1000-2000", 0.0)
+            else: return gender_data.get("2000+", 0.0)
             
     except Exception:
         return 0.0 # Fail safe
@@ -304,8 +304,8 @@ JIOMART_COMMISSION_RATES = {
 def get_jiomart_commission_rate(product_category, sale_price):
     rates = JIOMART_COMMISSION_RATES.get(product_category)
     if not rates: return 0.0
-    if sale_price <= 500: return rates["0-500"]
-    else: return rates["500+"]
+    if sale_price <= 500: return rates.get("0-500", 0.0)
+    else: return rates.get("500+", 0.0)
 
 # --- (EXISTING) Common Tax Function (No Change) ---
 def calculate_taxable_amount_value(customer_paid_amount):
@@ -987,21 +987,32 @@ with sku_col_2:
             st.session_state.pop('sku_message', None)
             st.session_state.pop('sku_input_key', None) # Clear the text input box itself
             st.session_state.pop('sku_select_key', None) # (NEW) Clear the select box key
+            
+            # (NEW) Also clear the widget keys
+            if 'myntra_brand_v3' in st.session_state:
+                del st.session_state.myntra_brand_v3
+            if 'myntra_cat_v3' in st.session_state:
+                del st.session_state.myntra_cat_v3
+            if 'myntra_gen_v3' in st.session_state:
+                del st.session_state.myntra_gen_v3
 
         st.button("Clear SKU Data", on_click=clear_sku_data, use_container_width=True)
 
 if sku_file is not None and 'sku_df' not in st.session_state:
     try:
         # Load the CSV
-        df = pd.read_csv(sku_file)
+        # --- (NEW FIX) Add encoding='utf-8' for safety ---
+        df = pd.read_csv(sku_file, encoding='utf-8')
+        
         # --- IMPORTANT: Normalize column names from CSV ---
         df.columns = [str(col).strip().lower() for col in df.columns]
         
         # --- (NEW FIX) ---
         # Strip whitespace from all string/object columns
         # This solves the problem of " YK" not matching "YK"
-        for col in df.select_dtypes(['object']):
-            df[col] = df[col].str.strip()
+        for col in df.select_dtypes(['object', 'string']): # Check for both
+            if col in df.columns:
+                df[col] = df[col].str.strip()
         # --- (END NEW FIX) ---
 
         # Check for required columns (lowercase)
@@ -1011,7 +1022,8 @@ if sku_file is not None and 'sku_df' not in st.session_state:
             st.session_state.sku_df = df
             st.success(f"Successfully loaded {len(df)} SKUs. You can now use the 'Fetch by SKU' feature in Single Product mode.")
         else:
-            st.error(f"File is missing required columns. It must contain: {', '.join(required_sku_cols)}")
+            missing_cols = [col for col in required_sku_cols if col not in df.columns]
+            st.error(f"File is missing required columns. Missing: {', '.join(missing_cols)}")
     
     except Exception as e:
         st.error(f"Error loading SKU file: {e}")
@@ -1065,6 +1077,14 @@ if calculation_mode == 'A. Single Product Calculation':
             st.session_state.fetched_gender = None
             st.session_state.fetched_style_name = None
             st.session_state.sku_message = None
+            
+            # (NEW) Also clear the widget keys
+            if 'myntra_brand_v3' in st.session_state:
+                del st.session_state.myntra_brand_v3
+            if 'myntra_cat_v3' in st.session_state:
+                del st.session_state.myntra_cat_v3
+            if 'myntra_gen_v3' in st.session_state:
+                del st.session_state.myntra_gen_v3
             return
 
         if 'sku_df' in st.session_state:
@@ -1076,9 +1096,22 @@ if calculation_mode == 'A. Single Product Calculation':
             
             if not result.empty:
                 # Note: All these values are already stripped from file loading
-                st.session_state.fetched_brand = result.iloc[0]['brand']
-                st.session_state.fetched_category = result.iloc[0]['article type']
-                st.session_state.fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender' header
+                fetched_brand = result.iloc[0]['brand']
+                fetched_category = result.iloc[0]['article type']
+                fetched_gender = result.iloc[0]['gender'] # Use lowercase 'gender' header
+
+                # --- (THIS IS THE FIX) ---
+                # Set the session state keys for the selectbox widgets
+                # Yahi source of truth hai
+                st.session_state.myntra_brand_v3 = fetched_brand
+                st.session_state.myntra_cat_v3 = fetched_category
+                st.session_state.myntra_gen_v3 = fetched_gender
+                # --- (END OF FIX) ---
+
+                # Store for other potential uses (like style name)
+                st.session_state.fetched_brand = fetched_brand
+                st.session_state.fetched_category = fetched_category
+                st.session_state.fetched_gender = fetched_gender
                 st.session_state.fetched_style_name = result.iloc[0]['style name']
                 st.session_state.sku_message = f"✅ Fetched: {st.session_state.fetched_style_name}"
             else:
@@ -1096,7 +1129,7 @@ if calculation_mode == 'A. Single Product Calculation':
         
         with sku_lookup_col1:
             # Note: 'seller sku code' is already stripped from file loading
-            sku_options = ["Select SKU..."] + st.session_state.sku_df['seller sku code'].unique().tolist()
+            sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df['seller sku code'].unique().tolist())
             st.selectbox(
                 "**Fetch by SKU:**",
                 options=sku_options,
@@ -1141,6 +1174,19 @@ if calculation_mode == 'A. Single Product Calculation':
     meesho_charge_rate = 0.0
     apply_royalty = 'No' # For old platforms
     
+    # --- (NEW) Callback to clear dependent keys ---
+    def brand_changed():
+        # Jab brand change ho, toh category aur gender ki saved value delete kar do
+        if 'myntra_cat_v3' in st.session_state:
+            del st.session_state.myntra_cat_v3
+        if 'myntra_gen_v3' in st.session_state:
+            del st.session_state.myntra_gen_v3
+
+    def category_changed():
+        # Jab category change ho, toh gender ki saved value delete kar do
+        if 'myntra_gen_v3' in st.session_state:
+            del st.session_state.myntra_gen_v3
+    
     
     if platform_selector == 'Myntra':
         st.info("Myntra calculation is based on new v3 rules (Slab-based Fixed Fee & Commission).")
@@ -1150,24 +1196,29 @@ if calculation_mode == 'A. Single Product Calculation':
         
         # 1. Brand
         brand_options = list(MYNTRA_COMMISSION_DATA.keys())
-        # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
+        # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
+        # --- (NEW) Add on_change callback ---
         myntra_new_brand = col_brand.selectbox(
             "Select Brand:", brand_options, 
-            key="myntra_brand_v3" # Key session state se value utha legi
+            key="myntra_brand_v3", # Key session state se value utha legi
+            on_change=brand_changed
         )
         
         # 2. Category
         try:
+            # Options 'myntra_new_brand' par dependent hain
             category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-            # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
+            # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
+            # --- (NEW) Add on_change callback ---
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
-                key="myntra_cat_v3" # Key session state se value utha legi
+                key="myntra_cat_v3", # Key session state se value utha legi
+                on_change=category_changed
             )
         except KeyError:
-            # This can happen if the brand is not in the commission data
+            # Yeh tab hota hai jab brand (myntra_new_brand) abhi set nahi hua ya invalid hai
             st.error(f"No categories found for brand '{myntra_new_brand}'. Please check MYNTRA_COMMISSION_DATA.")
-            # Fallback to an empty list to avoid crashing
+            # Fallback ke liye empty list
             category_options = []
             myntra_new_category = col_cat.selectbox(
                 "Select Category:", category_options, 
@@ -1180,16 +1231,18 @@ if calculation_mode == 'A. Single Product Calculation':
             
         # 3. Gender
         try:
+            # Options 'myntra_new_brand' aur 'myntra_new_category' par dependent hain
             gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-            # --- (FIX) Hata diya: 'index' logic hata diya. Sirf 'key' kaafi hai. ---
+            # --- (FIX) Hata diya: 'index' logic. Sirf 'key' kaafi hai. ---
             myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
                 key="myntra_gen_v3" # Key session state se value utha legi
+                # Yahaan on_change ki zaroorat nahi
             )
         except KeyError:
-             # This can happen if brand/category is not fully populated in commission data
+             # Yeh tab hota hai jab brand/category abhi set nahi hue
              st.error(f"No genders found for '{myntra_new_brand}' -> '{myntra_new_category}'. Please check MYNTRA_COMMISSION_DATA.")
-             # Fallback to an empty list
+             # Fallback ke liye empty list
              gender_options = []
              myntra_new_gender = col_gen.selectbox(
                 "Select Gender:", gender_options, 
