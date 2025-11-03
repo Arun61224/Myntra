@@ -1031,7 +1031,6 @@ if new_mrp > 0 and product_cost > 0:
             st.markdown("###### **4. Final Payout and Profit**")
             col7_r, col8_r = st.columns(2)
             col7_r.metric(label="**FINAL SETTLED AMOUNT**", value=f"₹ {settled_amount:,.2f}")
-TCS (10% on Tax Amt)
             col8_r.metric(
                 label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
                 value=f"₹ {net_profit:,.2f}",
@@ -1044,4 +1043,5 @@ TCS (10% on Tax Amt)
         st.code(traceback.format_exc())
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
 
