@@ -616,13 +616,17 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
             # --- 3. Royalty Check ---
             apply_royalty = 'No'
             apply_kuchipoo_royalty = 'No'
-            is_royalty_sku = sku.startswith("DKUC") or sku.startswith("MKUC")
             
             if current_platform == 'Myntra':
-                if myntra_brand == 'KUCHIPOO' and is_royalty_sku:
+                # Myntra logic: STAYS "startswith"
+                is_myntra_royalty_sku = sku.startswith("DKUC") or sku.startswith("MKUC")
+                if myntra_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
-            elif current_platform != 'Meesho' and is_royalty_sku: # Meesho has no royalty
-                apply_royalty = 'Yes'
+            elif current_platform != 'Meesho':
+                # Other portals logic: CHANGES TO "in"
+                is_other_portal_royalty_sku = ("DKUC" in sku) or ("MKUC" in sku)
+                if is_other_portal_royalty_sku:
+                    apply_royalty = 'Yes'
             
             # --- 4. Perform Calculation based on mode ---
             output_data = {
@@ -760,7 +764,20 @@ with st.expander("Download Data Templates (CSV)"):
     
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
+    # --- (NEW) Col 1 is now Consolidated ---
     with col1:
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,selling_price,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,1499,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,1399,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,1299,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,1199,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,1099,,,,,,,,Test Meesho\n"
+        st.download_button(
+            label="Consolidated",
+            data=consolidated_template_csv,
+            file_name="template_consolidated.csv",
+            mime="text/csv",
+            use_container_width=True,
+            help="Ek hi file mein saare platforms daalne ke liye. Har row mein 'platform' column zaroori hai."
+        )
+
+    # --- (NEW) Col 2 is now Myntra ---
+    with col2:
         myntra_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
         st.download_button(
             label="Myntra",
@@ -770,7 +787,7 @@ with st.expander("Download Data Templates (CSV)"):
             use_container_width=True
         )
 
-    with col2:
+    with col3:
         jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,1499,Tshirts,0.5,National\n"
         st.download_button(
             label="Jiomart",
@@ -780,7 +797,7 @@ with st.expander("Download Data Templates (CSV)"):
             use_container_width=True
         )
 
-    with col3:
+    with col4:
         ajio_fc_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-003,1799,400,1399\n"
         st.download_button(
             label="Ajio / FirstCry",
@@ -790,7 +807,7 @@ with st.expander("Download Data Templates (CSV)"):
             use_container_width=True
         )
 
-    with col4:
+    with col5:
         snapdeal_template_csv = "sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-004,1699,350,1299\n"
         st.download_button(
             label="Snapdeal",
@@ -799,8 +816,8 @@ with st.expander("Download Data Templates (CSV)"):
             mime="text/csv",
             use_container_width=True
         )
-
-    with col5:
+    
+    with col6:
         meesho_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-005,1599,300,1199\n"
         st.download_button(
             label="Meesho",
@@ -808,18 +825,6 @@ with st.expander("Download Data Templates (CSV)"):
             file_name="template_meesho.csv",
             mime="text/csv",
             use_container_width=True
-        )
-    
-    with col6:
-        # --- (MODIFIED) Consolidated Template ---
-        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,selling_price,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,1499,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,1399,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,1299,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,1199,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,1099,,,,,,,,Test Meesho\n"
-        st.download_button(
-            label="Consolidated",
-            data=consolidated_template_csv,
-            file_name="template_consolidated.csv",
-            mime="text/csv",
-            use_container_width=True,
-            help="Ek hi file mein saare platforms daalne ke liye. Har row mein 'platform' column zaroori hai."
         )
 
 st.divider()
@@ -1140,10 +1145,11 @@ if main_mode == "Single Product Calculation":
             
             if 'sku_df' in st.session_state:
                 selected_sku = st.session_state.get('sku_select_key', '').strip()
-                is_royalty_sku = selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC"))
 
                 if platform_selector == 'Myntra':
-                    if myntra_new_brand == 'KUCHIPOO' and is_royalty_sku:
+                    # Myntra logic: STAYS "startswith"
+                    is_myntra_royalty_sku = selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC"))
+                    if myntra_new_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
                         apply_kuchipoo_royalty = 'Yes'
                     
                     if selected_sku and selected_sku != "Select SKU...":
@@ -1154,7 +1160,9 @@ if main_mode == "Single Product Calculation":
                                 st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
                 
                 elif platform_selector != 'Myntra':
-                    if is_royalty_sku:
+                    # Other portals logic: CHANGES TO "in"
+                    is_other_portal_royalty_sku = selected_sku and (("DKUC" in selected_sku) or ("MKUC" in selected_sku))
+                    if is_other_portal_royalty_sku:
                         apply_royalty = 'Yes' # This is the key for OTHER platforms
                 
                     if selected_sku and selected_sku != "Select SKU...":
