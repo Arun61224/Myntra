@@ -1051,6 +1051,3 @@ if new_mrp > 0 and product_cost > 0:
 else:
     st.info("Please enter a valid MRP and Product Cost to start the calculation.")
 
-
-
-
