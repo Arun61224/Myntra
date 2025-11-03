@@ -1097,7 +1097,7 @@ if main_mode == "Single Product Calculation":
 
         elif platform_selector == 'Meesho':
             meesho_charge_percent = st.number_input(
-                "Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
+                "Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=5.0, step=0.1, format="%.2f",
                 key="meesho_charge_rate_single"
             ) / 100.0
             meesho_charge_rate = meesho_charge_percent
@@ -1376,7 +1376,7 @@ elif main_mode == "Bulk Calculation":
 
     # --- Global Inputs for Bulk ---
     bulk_target_margin = 0.0
-    bulk_meesho_charge_rate = 0.0
+    bulk_meesho_charge_rate = 0.05 # --- (CHANGED) Default set to 5% ---
     bulk_jiomart_benefit_rate = 0.0
 
     if bulk_calc_mode == 'Check With Selling Price':
@@ -1396,11 +1396,7 @@ elif main_mode == "Bulk Calculation":
         pass # --- (REMOVED) st.info("For Myntra rows, please ensure...") ---
 
     if bulk_platform == 'Meesho' or bulk_platform == 'Consolidated':
-        bulk_meesho_charge_rate = st.number_input(
-            "Default Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
-            help="This charge % will be applied to all Meesho SKUs."
-        ) / 100.0
-        # --- (REMOVED) st.info(f"For Meesho 'Profit Calculation', ...") ---
+        pass # --- (REMOVED) Entire st.number_input block for Meesho charge ---
 
     st.divider()
 
