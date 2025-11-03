@@ -525,7 +525,7 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
 
 
 # --- (NEW) Helper function for bulk processing ---
-def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0, meesho_charge=0.0, jio_benefit=0.0):
+def run_bulk_processing(df, bulk_platform, mode, discount_perc=0.0, target_margin=0.0, meesho_charge=0.0, jio_benefit=0.0):
     
     results = []
     cols = df.columns
@@ -548,6 +548,16 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
         st.error(f"File missing required columns. Need SKU ('{sku_col_name}'), MRP ('{mrp_col_name}'), and Cost ('{cost_col_name}').")
         return pd.DataFrame()
 
+    # --- (NEW) Check for Consolidated ---
+    platform_col_name = None
+    if bulk_platform == 'Consolidated':
+        if 'platform' in cols:
+            platform_col_name = 'platform'
+        else:
+            st.error("Consolidated mode requires a 'platform' column in your file. Please download the Consolidated Template.")
+            return pd.DataFrame()
+    # --- (END NEW) ---
+
     # --- Platform-specific Column Mapping ---
     brand_col = 'myntra_brand' if 'myntra_brand' in cols else 'brand' if 'brand' in cols else None
     cat_col = 'myntra_article_type' if 'myntra_article_type' in cols else 'article_type' if 'article_type' in cols else None
@@ -569,15 +579,19 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
             if mrp <= 0 or cost <= 0:
                 continue # Skip rows with invalid data
 
+            # --- (NEW) Determine current platform ---
+            current_platform = getattr(row, platform_col_name) if bulk_platform == 'Consolidated' else bulk_platform
+            current_platform = str(current_platform).strip() # Ensure it's a clean string
+
             # --- 2. Extract Platform Data ---
-            myntra_brand = getattr(row, brand_col) if platform == 'Myntra' and brand_col and hasattr(row, brand_col) else None
-            myntra_cat = getattr(row, cat_col) if platform == 'Myntra' and cat_col and hasattr(row, cat_col) else None
-            myntra_gen = getattr(row, gen_col) if platform == 'Myntra' and gen_col and hasattr(row, gen_col) else None
+            myntra_brand = getattr(row, brand_col) if current_platform == 'Myntra' and brand_col and hasattr(row, brand_col) else None
+            myntra_cat = getattr(row, cat_col) if current_platform == 'Myntra' and cat_col and hasattr(row, cat_col) else None
+            myntra_gen = getattr(row, gen_col) if current_platform == 'Myntra' and gen_col and hasattr(row, gen_col) else None
             
-            jio_cat = getattr(row, jio_cat_col) if platform == 'Jiomart' and jio_cat_col and hasattr(row, jio_cat_col) else None
-            jio_zone = getattr(row, zone_col) if platform == 'Jiomart' and zone_col and hasattr(row, zone_col) else 'National' # Default
+            jio_cat = getattr(row, jio_cat_col) if current_platform == 'Jiomart' and jio_cat_col and hasattr(row, jio_cat_col) else None
+            jio_zone = getattr(row, zone_col) if current_platform == 'Jiomart' and zone_col and hasattr(row, zone_col) else 'National' # Default
             jio_weight = 0.5 # Default
-            if platform == 'Jiomart' and weight_col and hasattr(row, weight_col):
+            if current_platform == 'Jiomart' and weight_col and hasattr(row, weight_col):
                 try:
                     weight_val = float(getattr(row, weight_col))
                     if weight_col == 'product_weight': # Assume grams
@@ -592,10 +606,10 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
             apply_kuchipoo_royalty = 'No'
             is_royalty_sku = sku.startswith("DKUC") or sku.startswith("MKUC")
             
-            if platform == 'Myntra':
+            if current_platform == 'Myntra':
                 if myntra_brand == 'KUCHIPOO' and is_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
-            elif is_royalty_sku:
+            elif current_platform != 'Meesho' and is_royalty_sku: # Meesho has no royalty
                 apply_royalty = 'Yes'
             
             # --- 4. Perform Calculation based on mode ---
@@ -604,6 +618,8 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
                 "MRP": mrp,
                 "Cost_Price": cost,
             }
+            if bulk_platform == 'Consolidated':
+                output_data["Platform"] = current_platform
 
             if mode == 'Profit Calculation':
                 discount_amount = mrp * (discount_perc / 100.0)
@@ -616,10 +632,10 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
                  jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
                  yk_fixed_fee 
                 ) = perform_calculations(
-                    mrp, discount_amount, cost, platform,
+                    mrp, discount_amount, cost, current_platform,
                     myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
                     jio_weight, jio_zone, jio_cat, jio_benefit,
-                    meesho_charge, wdp if platform == 'Meesho' else None,
+                    meesho_charge, wdp if current_platform == 'Meesho' else None,
                     apply_royalty, 0.0
                 )
                 
@@ -640,7 +656,7 @@ def run_bulk_processing(df, platform, mode, discount_perc=0.0, target_margin=0.0
 
             else: # Target Discount
                 discount_amount, final_profit, discount_percent = find_discount_for_target_profit(
-                    mrp, target_margin, cost, platform,
+                    mrp, target_margin, cost, current_platform,
                     myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
                     jio_weight, jio_zone, jio_cat, jio_benefit,
                     meesho_charge, None,
@@ -682,7 +698,7 @@ sku_col_1, sku_col_2 = st.columns([3, 1])
 
 with sku_col_1:
     sku_file = st.file_uploader(
-        "Upload your platform-specific SKU file:", 
+        "Upload your platform-specific or consolidated SKU file:", 
         type=['csv', 'xlsx'],
         help="Upload your CSV or Excel file. The app will try to read it based on the platform selected below."
     )
@@ -723,12 +739,12 @@ if sku_file is not None and 'sku_df' not in st.session_state:
 with st.expander("Download Data Templates (CSV)"):
     st.info("Download these templates, fill your data, and upload the file above. Column names must match.")
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         myntra_template_csv = "seller_sku_code,product_mrp,product_cost,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
         st.download_button(
-            label="Myntra Template",
+            label="Myntra",
             data=myntra_template_csv,
             file_name="template_myntra.csv",
             mime="text/csv",
@@ -738,7 +754,7 @@ with st.expander("Download Data Templates (CSV)"):
     with col2:
         jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,Tshirts,0.5,National\n"
         st.download_button(
-            label="Jiomart Template",
+            label="Jiomart",
             data=jiomart_template_csv,
             file_name="template_jiomart.csv",
             mime="text/csv",
@@ -758,7 +774,7 @@ with st.expander("Download Data Templates (CSV)"):
     with col4:
         snapdeal_template_csv = "sku_code,product_mrp,product_cost\nDKUC-TEST-004,1699,350\n"
         st.download_button(
-            label="Snapdeal Template",
+            label="Snapdeal",
             data=snapdeal_template_csv,
             file_name="template_snapdeal.csv",
             mime="text/csv",
@@ -768,11 +784,23 @@ with st.expander("Download Data Templates (CSV)"):
     with col5:
         meesho_template_csv = "seller_sku_code,product_mrp,product_cost\nDKUC-TEST-005,1599,300\n"
         st.download_button(
-            label="Meesho Template",
+            label="Meesho",
             data=meesho_template_csv,
             file_name="template_meesho.csv",
             mime="text/csv",
             use_container_width=True
+        )
+    
+    with col6:
+        # --- (NEW) Consolidated Template ---
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-TEST-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-TEST-003,1799,400,,,,,,,,Test Ajio\n"
+        st.download_button(
+            label="Consolidated",
+            data=consolidated_template_csv,
+            file_name="template_consolidated.csv",
+            mime="text/csv",
+            use_container_width=True,
+            help="Ek hi file mein saare platforms daalne ke liye. Har row mein 'platform' column zaroori hai."
         )
 
 st.divider()
@@ -1288,9 +1316,10 @@ elif main_mode == "Bulk Calculation":
     with col1_bulk:
         bulk_platform = st.selectbox(
             "Select Platform:",
-            ('Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
+            ('Consolidated', 'Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
             index=0, 
-            key="bulk_platform_selector"
+            key="bulk_platform_selector",
+            help="Select 'Consolidated' if your file has a 'platform' column for each row."
         )
     
     with col2_bulk:
@@ -1317,20 +1346,20 @@ elif main_mode == "Bulk Calculation":
         bulk_target_margin = st.number_input("Target Margin Amount (₹) (per SKU)", min_value=0.0, value=100.0, step=10.0)
 
     # --- Platform-specific Inputs for Bulk ---
-    if bulk_platform == 'Jiomart':
-        st.info("For Jiomart, please ensure your uploaded file contains `jiomart_category`, `product_weight_kg`, and `shipping_zone` columns for accurate calculations.")
+    if bulk_platform == 'Jiomart' or bulk_platform == 'Consolidated':
+        st.info("For Jiomart rows, please ensure your file contains `jiomart_category`, `product_weight_kg`, and `shipping_zone` columns.")
         bulk_jiomart_benefit_rate = st.number_input(
-            "Jiomart Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f",
-            help="This flat benefit rate will be applied to all SKUs."
+            "Default Jiomart Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f",
+            help="This flat benefit rate will be applied to all Jiomart SKUs."
         ) / 100.0
     
-    elif bulk_platform == 'Myntra':
-        st.info("For Myntra, please ensure your file contains `brand`, `article_type`, and `gender` columns for accurate calculations.")
+    if bulk_platform == 'Myntra' or bulk_platform == 'Consolidated':
+        st.info("For Myntra rows, please ensure your file contains `brand`, `article_type`, and `gender` columns.")
 
-    elif bulk_platform == 'Meesho':
+    if bulk_platform == 'Meesho' or bulk_platform == 'Consolidated':
         bulk_meesho_charge_rate = st.number_input(
-            "Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
-            help="This charge % will be applied to all SKUs."
+            "Default Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
+            help="This charge % will be applied to all Meesho SKUs."
         ) / 100.0
         if bulk_calc_mode == 'Profit Calculation':
             st.info(f"For Meesho 'Profit Calculation', Wrong/Defective Price (WDP) will be calculated as: MRP * (100 - {bulk_discount_percent})%")
@@ -1360,7 +1389,7 @@ elif main_mode == "Bulk Calculation":
                 st.download_button(
                     label="Download Results as CSV",
                     data=csv_data,
-                    file_name=f"bulk_results_{bulk_platform}_{bulk_calc_mode.lower().replace(' ', '_')}.csv",
+                    file_name=f"bulk_results_{bulk_platform.lower()}_{bulk_calc_mode.lower().replace(' ', '_')}.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
