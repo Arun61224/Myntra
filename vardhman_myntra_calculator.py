@@ -661,15 +661,9 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 final_settled = settled_amount - royalty_fee
                 final_profit = net_profit - royalty_fee
                 
+                # --- (MODIFIED) Only output specific columns ---
                 output_data.update({
                     "Selling_Price": selling_price,
-                    "Discount_Amount": discount_amount,
-                    "Invoice_Value_CPA": customer_paid_amount,
-                    "Platform_Fee": final_commission,
-                    "Fixed_Fee_1": gt_charge,
-                    "Fixed_Fee_2_YK": yk_fixed_fee,
-                    "Royalty_Fee": royalty_fee,
-                    "TDS_TCS": tds + tcs,
                     "Final_Settled_Amount": final_settled,
                     "Net_Profit": final_profit
                 })
