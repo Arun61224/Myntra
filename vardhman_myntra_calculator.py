@@ -550,9 +550,9 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
 
     # --- (NEW) Update required columns check ---
     required_cols_check = [sku_col_name, mrp_col_name, cost_col_name]
-    if mode == 'Profit Calculation':
+    if mode == 'Check With Selling Price': # Profit Calculation
         if not selling_price_col_name:
-            st.error("File missing required column: 'selling_price' is needed for 'Profit Calculation' mode.")
+            st.error("File missing required column: 'selling_price' is needed for 'Check With Selling Price' mode.")
             return pd.DataFrame()
         required_cols_check.append(selling_price_col_name)
 
@@ -637,7 +637,7 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
             if bulk_platform == 'Consolidated':
                 output_data["Platform"] = current_platform
 
-            if mode == 'Profit Calculation':
+            if mode == 'Check With Selling Price':
                 # --- (NEW) Calculate discount from selling_price ---
                 selling_price = float(getattr(row, selling_price_col_name))
                 discount_amount = mrp - selling_price
@@ -674,7 +674,7 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                     "Net_Profit": final_profit
                 })
 
-            else: # Target Discount
+            else: # Check With Cost Price
                 discount_amount, final_profit, discount_percent = find_discount_for_target_profit(
                     mrp, target_margin, cost, current_platform,
                     myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
@@ -759,72 +759,76 @@ if sku_file is not None and 'sku_df' not in st.session_state:
     except Exception as e:
         st.error(f"Error loading SKU file: {e}")
 
-with st.expander("Download Data Templates (CSV)"):
-    st.info("Download these templates, fill your data, and upload the file above. Column names must match.")
-    
+# --- (NEW) Two sets of templates ---
+st.markdown("**Download Templates (CSV):**")
+with st.expander("Templates for 'Check With Selling Price' (Profit Calc)"):
+    st.info("In files ko use karein jab aapke paas 'selling_price' hai aur aap 'Net_Profit' calculate karna chahte hain.")
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
-    # --- (NEW) Col 1 is now Consolidated ---
     with col1:
         consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,selling_price,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,1499,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,1399,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,1299,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,1199,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,1099,,,,,,,,Test Meesho\n"
         st.download_button(
-            label="Consolidated",
-            data=consolidated_template_csv,
-            file_name="template_consolidated.csv",
-            mime="text/csv",
-            use_container_width=True,
-            help="Ek hi file mein saare platforms daalne ke liye. Har row mein 'platform' column zaroori hai."
+            label="Consolidated", data=consolidated_template_csv, file_name="template_profit_consolidated.csv", mime="text/csv", use_container_width=True
         )
-
-    # --- (NEW) Col 2 is now Myntra ---
     with col2:
         myntra_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
         st.download_button(
-            label="Myntra",
-            data=myntra_template_csv,
-            file_name="template_myntra.csv",
-            mime="text/csv",
-            use_container_width=True
+            label="Myntra", data=myntra_template_csv, file_name="template_profit_myntra.csv", mime="text/csv", use_container_width=True
         )
-
     with col3:
         jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,1499,Tshirts,0.5,National\n"
         st.download_button(
-            label="Jiomart",
-            data=jiomart_template_csv,
-            file_name="template_jiomart.csv",
-            mime="text/csv",
-            use_container_width=True
+            label="Jiomart", data=jiomart_template_csv, file_name="template_profit_jiomart.csv", mime="text/csv", use_container_width=True
         )
-
     with col4:
         ajio_fc_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-003,1799,400,1399\n"
         st.download_button(
-            label="Ajio / FirstCry",
-            data=ajio_fc_template_csv,
-            file_name="template_ajio_firstcry.csv",
-            mime="text/csv",
-            use_container_width=True
+            label="Ajio / FirstCry", data=ajio_fc_template_csv, file_name="template_profit_ajio_firstcry.csv", mime="text/csv", use_container_width=True
         )
-
     with col5:
         snapdeal_template_csv = "sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-004,1699,350,1299\n"
         st.download_button(
-            label="Snapdeal",
-            data=snapdeal_template_csv,
-            file_name="template_snapdeal.csv",
-            mime="text/csv",
-            use_container_width=True
+            label="Snapdeal", data=snapdeal_template_csv, file_name="template_profit_snapdeal.csv", mime="text/csv", use_container_width=True
         )
-    
     with col6:
         meesho_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-005,1599,300,1199\n"
         st.download_button(
-            label="Meesho",
-            data=meesho_template_csv,
-            file_name="template_meesho.csv",
-            mime="text/csv",
-            use_container_width=True
+            label="Meesho", data=meesho_template_csv, file_name="template_profit_meesho.csv", mime="text/csv", use_container_width=True
+        )
+
+with st.expander("Templates for 'Check With Cost Price' (Target Margin)"):
+    st.info("In files ko use karein jab aap 'Target Margin' set karke 'Required_Selling_Price' calculate karna chahte hain.")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
+    with col1:
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,,,,,,,,Test Meesho\n"
+        st.download_button(
+            label="Consolidated", data=consolidated_template_csv, file_name="template_target_consolidated.csv", mime="text/csv", use_container_width=True
+        )
+    with col2:
+        myntra_template_csv = "seller_sku_code,product_mrp,product_cost,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
+        st.download_button(
+            label="Myntra", data=myntra_template_csv, file_name="template_target_myntra.csv", mime="text/csv", use_container_width=True
+        )
+    with col3:
+        jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,Tshirts,0.5,National\n"
+        st.download_button(
+            label="Jiomart", data=jiomart_template_csv, file_name="template_target_jiomart.csv", mime="text/csv", use_container_width=True
+        )
+    with col4:
+        ajio_fc_template_csv = "seller_sku_code,product_mrp,product_cost\nDKUC-TEST-003,1799,400\n"
+        st.download_button(
+            label="Ajio / FirstCry", data=ajio_fc_template_csv, file_name="template_target_ajio_firstcry.csv", mime="text/csv", use_container_width=True
+        )
+    with col5:
+        snapdeal_template_csv = "sku_code,product_mrp,product_cost\nDKUC-TEST-004,1699,350\n"
+        st.download_button(
+            label="Snapdeal", data=snapdeal_template_csv, file_name="template_target_snapdeal.csv", mime="text/csv", use_container_width=True
+        )
+    with col6:
+        meesho_template_csv = "seller_sku_code,product_mrp,product_cost\nDKUC-TEST-005,1599,300\n"
+        st.download_button(
+            label="Meesho", data=meesho_template_csv, file_name="template_target_meesho.csv", mime="text/csv", use_container_width=True
         )
 
 st.divider()
@@ -837,7 +841,7 @@ if main_mode == "Single Product Calculation":
     st.markdown("###### **3. Select Calculation Mode**")
     single_calc_mode = st.radio(
         "Select Calculation Mode:", 
-        ('Profit Calculation', 'Target Discount'),
+        ('Check With Selling Price', 'Check With Cost Price'),
         index=0, label_visibility="collapsed", horizontal=True
     )
     st.markdown("---")
@@ -1114,16 +1118,16 @@ if main_mode == "Single Product Calculation":
     wrong_defective_price = None
 
     if platform_selector == 'Meesho':
-        if single_calc_mode == 'Target Discount':
+        if single_calc_mode == 'Check With Cost Price':
             col_price_in.info(f"WDP will be calculated to achieve Margin Amount of ₹ {product_margin_target_rs:,.2f}")
         else:
             wrong_defective_price = col_price_in.number_input(
-                "Wrong/Defective Price (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
+                "Selling Price (WDP) (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
                 key="meesho_wdp_manual"
             )
 
     else:
-        if single_calc_mode == 'Profit Calculation':
+        if single_calc_mode == 'Check With Selling Price':
             new_discount = col_price_in.number_input("Discount Amount (₹)", min_value=0.0, max_value=new_mrp, value=500.0, step=10.0, key="new_discount_manual")
         else:
             col_price_in.info(f"Targeting an 'Add Margin Amount' of ₹ {product_margin_target_rs:,.2f}...")
@@ -1175,7 +1179,7 @@ if main_mode == "Single Product Calculation":
                  st.warning("SKU file not loaded. Automatic Royalty check is disabled.")
             
             
-            if single_calc_mode == 'Target Discount':
+            if single_calc_mode == 'Check With Cost Price':
                 calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
                     new_mrp, product_margin_target_rs, product_cost, platform_selector,
                     myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, 
@@ -1352,7 +1356,7 @@ elif main_mode == "Bulk Calculation":
     with col2_bulk:
         bulk_calc_mode = st.radio(
             "Select Calculation Mode", 
-            ('Profit Calculation', 'Target Discount'),
+            ('Check With Selling Price', 'Check With Cost Price'),
             index=0, 
             horizontal=True,
             key="bulk_calc_mode_selector"
@@ -1366,9 +1370,9 @@ elif main_mode == "Bulk Calculation":
     bulk_meesho_charge_rate = 0.0
     bulk_jiomart_benefit_rate = 0.0
 
-    if bulk_calc_mode == 'Profit Calculation':
-        st.info("For 'Profit Calculation' mode, please ensure your file has a 'selling_price' column.")
-    else: # Target Discount
+    if bulk_calc_mode == 'Check With Selling Price':
+        st.info("For 'Check With Selling Price' mode, please ensure your file has a 'selling_price' column.")
+    else: # Check With Cost Price
         bulk_target_margin = st.number_input("Target Margin Amount (₹) (per SKU)", min_value=0.0, value=100.0, step=10.0)
 
     # --- Platform-specific Inputs for Bulk ---
@@ -1387,8 +1391,8 @@ elif main_mode == "Bulk Calculation":
             "Default Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=3.0, step=0.1, format="%.2f",
             help="This charge % will be applied to all Meesho SKUs."
         ) / 100.0
-        if bulk_calc_mode == 'Profit Calculation':
-            st.info(f"For Meesho 'Profit Calculation', the 'selling_price' column will be used as the Wrong/Defective Price (WDP).")
+        if bulk_calc_mode == 'Check With Selling Price':
+            st.info(f"For Meesho 'Check With Selling Price', the 'selling_price' column will be used as the Wrong/Defective Price (WDP).")
 
     st.divider()
 
