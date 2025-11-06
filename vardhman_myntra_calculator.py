@@ -373,6 +373,14 @@ def perform_calculations(mrp, discount,
         
         royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) # Use customer_paid_amount
         
+        # --- (NEW) Calculate Myntra Marketing Fee ---
+        if myntra_new_brand == "KUCHIPOO":
+            marketing_fee_base = customer_paid_amount * 0.05
+        elif myntra_new_brand in ["YK", "YK Disney", "YK Marvel"]:
+            marketing_fee_base = customer_paid_amount * 0.04
+        else:
+            marketing_fee_base = 0.0
+        # --- (END NEW) ---
         
         sale_price = seller_price # Override sale_price for return
             
@@ -442,7 +450,8 @@ def perform_calculations(mrp, discount,
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction 
     elif platform == 'Myntra':
-         total_deductions = final_commission + gt_charge + yk_fixed_fee
+         # --- (CHANGED) Added marketing_fee_base ---
+         total_deductions = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base
     elif platform == 'Meesho':
         total_deductions = final_commission 
     else: 
@@ -1288,7 +1297,8 @@ if main_mode == "Single Product Calculation":
 
                 with col_right:
                     st.markdown("###### **Deductions (Charges)**")
-                    col1_r, col2_r = st.columns(2)
+                    # --- (CHANGED) Set columns to 3 ---
+                    col1_r, col2_r, col3_r = st.columns(3)
 
                     platform_fee_label = "Platform Fee (Incl. GST)"
                     platform_fee_value = final_commission
@@ -1311,6 +1321,10 @@ if main_mode == "Single Product Calculation":
                     
                     
                     col2_r.metric(label="Royalty Fee", value=f"₹ {royalty_fee:,.2f}")
+                    
+                    # --- (NEW) Display Marketing Fee ---
+                    col3_r.metric(label="Marketing Fee", value=f"₹ {marketing_fee_base:,.2f}")
+                    # --- (END NEW) ---
 
                     col4_r, col5_r, col6_r = st.columns(3)
                     col4_r.metric(label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)", value=f"₹ {taxable_amount_value:,.2f}")
@@ -1428,4 +1442,3 @@ elif main_mode == "Bulk Calculation":
                 )
             else:
                 st.warning("Calculation finished, but no results were generated. Please check your file and column names.")
-
