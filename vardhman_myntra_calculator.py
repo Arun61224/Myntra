@@ -661,7 +661,7 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 
                 output_data.update({
                     "Selling_Price": selling_price,
-                    "Platform_Settlement": settled_amount,
+                    "Bank_Settlement_Amount": settled_amount,
                     "Royalty_You_Pay": royalty_fee,
                     "Net_Profit_In_Hand": net_profit
                 })
@@ -678,10 +678,31 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 )
                 
                 selling_price_req = (mrp - discount_amount) if discount_amount is not None else "N/A"
-                
+                bank_settlement_amt = "N/A"
+
+                if discount_amount is not None:
+                    wdp_calc = (mrp - discount_amount)
+                    
+                    # Re-run calc to get breakdown
+                    (sale_price, gt_charge, customer_paid_amount, royalty_fee,
+                     marketing_fee_base, marketing_fee_gst, final_commission,
+                     commission_rate, settled_amount, taxable_amount_value,
+                     net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
+                     jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
+                     yk_fixed_fee 
+                    ) = perform_calculations(
+                        mrp, discount_amount, cost, current_platform,
+                        myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
+                        jio_weight, jio_zone, jio_cat, jio_benefit,
+                        meesho_charge, wdp_calc if current_platform == 'Meesho' else None,
+                        apply_royalty, 0.0
+                    )
+                    bank_settlement_amt = settled_amount
+
                 output_data.update({
                     "Target_Margin": target_margin,
                     "Required_Selling_Price": selling_price_req,
+                    "Bank_Settlement_Amount": bank_settlement_amt,
                     "Projected_Net_Profit": final_profit if final_profit is not None else "N/A"
                 })
 
