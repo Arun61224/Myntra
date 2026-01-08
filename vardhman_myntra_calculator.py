@@ -6,7 +6,7 @@ from io import BytesIO
 FULL_TITLE = "Vardhman Wool Store E-commerce Calculator"
 st.set_page_config(layout="wide", page_title=FULL_TITLE, page_icon="🛍️")
 
-# --- Password State ---
+# --- (NEW) Password State ---
 if 'password_correct' not in st.session_state:
     st.session_state.password_correct = False
 
@@ -304,7 +304,6 @@ def perform_calculations(mrp, discount,
     yk_fixed_fee = 0.0 
     royalty_fee = 0.0
     marketing_fee_base = 0.0 
-    marketing_fee_gst = 0.0 # --- (NEW) GST on Marketing ---
     final_commission = 0.0
     commission_rate = 0.0
     
@@ -333,16 +332,16 @@ def perform_calculations(mrp, discount,
         sale_price = mrp - discount 
         
         if sale_price < 0:
-            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) 
+            return (sale_price, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -99999999.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) 
 
         customer_paid_amount = sale_price 
 
-    # --- COMMON TAX CALCULATION ---
+    # --- (MOVED) COMMON TAX CALCULATION ---
     taxable_amount_value, invoice_tax_rate = calculate_taxable_amount_value(customer_paid_amount)
     tax_amount = customer_paid_amount - taxable_amount_value
     tds = taxable_amount_value * 0.001
     tcs = tax_amount * 0.10 
-    # --- 
+    # --- (END MOVED BLOCK) ---
 
     # --- PLATFORM SPECIFIC FEES ---
     if platform == 'Meesho':
@@ -353,7 +352,7 @@ def perform_calculations(mrp, discount,
         gt_charge = 0.0
         yk_fixed_fee = 0.0
         marketing_fee_base = 0.0
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # --- (CHANGED) ---
         total_fixed_charge = 0.0
 
     elif platform == 'Myntra':
@@ -364,9 +363,7 @@ def perform_calculations(mrp, discount,
 
         total_fixed_charge = gt_charge + yk_fixed_fee 
         
-        # Commission is usually on Net Selling Price (Price - Base Fixed Fee)
-        # Using approximated approach: CPA - GT Charge for base
-        seller_price = customer_paid_amount - gt_charge 
+        seller_price = customer_paid_amount - gt_charge # Use customer_paid_amount
         
         commission_rate = get_myntra_new_commission_rate(myntra_new_brand, myntra_new_category, myntra_new_gender, seller_price) 
             
@@ -374,32 +371,31 @@ def perform_calculations(mrp, discount,
         commission_tax = commission_base * GST_RATE_FEES
         final_commission = commission_base + commission_tax
         
-        royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) 
+        royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) # Use customer_paid_amount
         
-        # --- (CORRECTED) Myntra Marketing Fee + GST ---
+        # --- (NEW) Calculate Myntra Marketing Fee ---
         if myntra_new_brand == "KUCHIPOO":
             marketing_fee_base = customer_paid_amount * 0.05
         elif myntra_new_brand in ["YK", "YK Disney", "YK Marvel"]:
             marketing_fee_base = customer_paid_amount * 0.04
         else:
             marketing_fee_base = 0.0
-            
-        marketing_fee_gst = marketing_fee_base * 0.18 # GST on Marketing
-        # --- (END CORRECTED) ---
+        # --- (END NEW) ---
         
-        sale_price = seller_price # Internal override for checking
+        sale_price = seller_price # Override sale_price for return
+            
             
     elif platform == 'FirstCry':
         commission_rate = 0.42
-        final_commission = customer_paid_amount * commission_rate 
+        final_commission = customer_paid_amount * commission_rate # Use customer_paid_amount
         gt_charge = 0.0
         marketing_fee_base = 0.0
         total_fixed_charge = 0.0
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
     elif platform == 'Ajio':
         commission_rate = 0.20
-        commission_base = customer_paid_amount * commission_rate 
+        commission_base = customer_paid_amount * commission_rate # Use customer_paid_amount
         commission_tax = commission_base * 0.18
         final_commission = commission_base + commission_tax
         scm_base = 95.0
@@ -407,32 +403,32 @@ def perform_calculations(mrp, discount,
         gt_charge = scm_base + scm_tax
         marketing_fee_base = 0.0
         total_fixed_charge = gt_charge
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
     elif platform == 'Snapdeal':
         commission_rate = 0.24
-        commission_base = round(customer_paid_amount * commission_rate)
+        commission_base = round(customer_paid_amount * commission_rate) # Use customer_paid_amount
         commission_tax = round(commission_base * GST_RATE_FEES)
         final_commission = commission_base + commission_tax
         
-        ro_base = round(customer_paid_amount * 0.08)
+        ro_base = round(customer_paid_amount * 0.08) # Use customer_paid_amount
         ro_tax = round(ro_base * 0.14)
         gt_charge = ro_base + ro_tax
             
         marketing_fee_base = 0.0
         total_fixed_charge = gt_charge
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
     elif platform == 'Jiomart':
         
-        commission_rate = get_jiomart_commission_rate(jiomart_category, customer_paid_amount) if jiomart_category else 0.0 
-        jiomart_comm_fee_base = customer_paid_amount * commission_rate 
-        jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(customer_paid_amount) 
+        commission_rate = get_jiomart_commission_rate(jiomart_category, customer_paid_amount) if jiomart_category else 0.0 # Use customer_paid_amount
+        jiomart_comm_fee_base = customer_paid_amount * commission_rate # Use customer_paid_amount
+        jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(customer_paid_amount) # Use customer_paid_amount
         jiomart_shipping_fee_base = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone) if shipping_zone and weight_in_kg > 0 else 0.0
         
         jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
         
-        jiomart_benefit_amount = -(customer_paid_amount * jiomart_benefit_rate) 
+        jiomart_benefit_amount = -(customer_paid_amount * jiomart_benefit_rate) # Use customer_paid_amount
         
         jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
             
@@ -444,29 +440,28 @@ def perform_calculations(mrp, discount,
         total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
         gt_charge = total_fixed_charge 
         
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
 
-    # --- 4. Total Deductions & Settlement (Paid by Platform) ---
-    # NOTE: Royalty is NOT deducted here. Platform pays you (CPA - Fees).
-    
+            
+    # tax_amount = customer_paid_amount - taxable_amount_value
+    # tds = taxable_amount_value * 0.001
+    # tcs = tax_amount * 0.10 
+
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction 
     elif platform == 'Myntra':
-         # --- (CORRECTED) Added marketing_fee_gst ---
-         total_deductions = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base + marketing_fee_gst
+         # --- (CHANGED) Added marketing_fee_base ---
+         total_deductions = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base
     elif platform == 'Meesho':
         total_deductions = final_commission 
     else: 
         total_deductions = final_commission + marketing_fee_base + gt_charge
         
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
-    
-    # --- 5. Net Profit (Actual Cash in Hand) ---
-    # Deduct Royalty HERE because you pay it separately from the settlement
-    net_profit = settled_amount - product_cost - royalty_fee
+    net_profit = settled_amount - product_cost
 
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-            marketing_fee_base, marketing_fee_gst, # Return GST too
+            marketing_fee_base, 0.0, 
             final_commission, 
             commission_rate, settled_amount, taxable_amount_value,
             net_profit, tds, tcs, invoice_tax_rate, 
@@ -485,7 +480,7 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
                                     meesho_charge_rate=0.0, wrong_defective_price=None, 
                                     apply_royalty='No'):
 
-    def get_net_profit(disc, wdp=None):
+    def get_profit(disc, wdp=None):
         results = perform_calculations(mrp, disc, product_cost, platform,
                                        myntra_new_brand, myntra_new_category, myntra_new_gender,
                                        apply_kuchipoo_royalty,
@@ -493,60 +488,62 @@ def find_discount_for_target_profit(mrp, target_profit, product_cost, platform,
                                        meesho_charge_rate, wdp,
                                        apply_royalty, 0.0) 
         
-        if results is None: return -9999.0
-        # Return Net Profit (which now accounts for Royalty deduction)
-        return results[10]
-
-    # --- Optimizing Search Step ---
-    step_size = 5.0
+        # --- (FIX) Add check for NoneType ---
+        net_profit_before_royalty = results[10] if results[10] is not None else 0.0
+        royalty_fee_for_profit = results[3] if results[3] is not None else 0.0
+        # --- (END FIX) ---
+        
+        return net_profit_before_royalty - royalty_fee_for_profit
 
     if platform == 'Meesho':
-        max_profit = get_net_profit(0.0, mrp) 
+        max_profit = get_profit(0.0, mrp) 
         if max_profit < target_profit:
             return None, max_profit, 0.0 
             
+        wdp_step = 1.0
         required_wdp = mrp
+
         while required_wdp >= 0:
-            current_profit = get_net_profit(0.0, required_wdp) 
+            current_profit = get_profit(0.0, round(required_wdp, 2)) 
             if current_profit < target_profit:
-                # Revert one step to stay above target
-                final_wdp = required_wdp + step_size
+                final_wdp = required_wdp + wdp_step
                 target_wdp = min(final_wdp, mrp) 
                 
                 discount_amount = mrp - target_wdp 
                 discount_percent = (discount_amount / mrp) * 100 if mrp > 0 else 0.0
-                final_profit = get_net_profit(0.0, target_wdp)
+                final_profit = get_profit(0.0, target_wdp)
                 return discount_amount, final_profit, discount_percent 
-            required_wdp -= step_size
+            required_wdp -= wdp_step
             
-        final_profit = get_net_profit(0.0, 0.0)
+        final_profit = get_profit(0.0, 0.0)
         return mrp, final_profit, 100.0 
 
-    # For other platforms
-    initial_profit = get_net_profit(0.0) 
+    initial_profit = get_profit(0.0) 
     if initial_profit < target_profit:
         return None, initial_profit, 0.0 
 
+    discount_step = 1.0
     required_discount = 0.0
     while required_discount <= mrp:
-        current_profit = get_net_profit(required_discount)
+        current_profit = get_profit(required_discount)
         if current_profit < target_profit:
-            final_discount = max(0.0, required_discount - step_size)
-            final_profit = get_net_profit(final_discount)
+            final_discount = max(0.0, required_discount - discount_step)
+            final_profit = get_profit(final_discount)
             discount_percent = (final_discount / mrp) * 100
             return final_discount, final_profit, discount_percent
-        required_discount += step_size
+        required_discount += discount_step
 
-    final_profit = get_net_profit(mrp)
+    final_profit = get_profit(mrp)
     return mrp, final_profit, 100.0
 
 
-# --- Helper function for bulk processing ---
+# --- (NEW) Helper function for bulk processing ---
 def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charge=0.0, jio_benefit=0.0):
     
     results = []
     cols = df.columns
     
+    # --- Dynamic Column Mapping ---
     sku_col_name = None
     if 'seller_sku_code' in cols: sku_col_name = 'seller_sku_code'
     elif 'sku_code' in cols: sku_col_name = 'sku_code'
@@ -560,11 +557,13 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
     if 'product_cost' in cols: cost_col_name = 'product_cost'
     elif 'cost_price' in cols: cost_col_name = 'cost_price'
 
+    # --- (NEW) Selling Price Column ---
     selling_price_col_name = None
     if 'selling_price' in cols: selling_price_col_name = 'selling_price'
 
+    # --- (NEW) Update required columns check ---
     required_cols_check = [sku_col_name, mrp_col_name, cost_col_name]
-    if mode == 'Check With Selling Price': 
+    if mode == 'Check With Selling Price': # Profit Calculation
         if not selling_price_col_name:
             st.error("File missing required column: 'selling_price' is needed for 'Check With Selling Price' mode.")
             return pd.DataFrame()
@@ -574,14 +573,17 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
         st.error(f"File missing required columns. Need SKU, MRP, and Cost. Check template downloads.")
         return pd.DataFrame()
 
+    # --- Check for Consolidated ---
     platform_col_name = None
     if bulk_platform == 'Consolidated':
         if 'platform' in cols:
             platform_col_name = 'platform'
         else:
-            st.error("Consolidated mode requires a 'platform' column in your file.")
+            st.error("Consolidated mode requires a 'platform' column in your file. Please download the Consolidated Template.")
             return pd.DataFrame()
+    # --- (END NEW) ---
 
+    # --- Platform-specific Column Mapping ---
     brand_col = 'myntra_brand' if 'myntra_brand' in cols else 'brand' if 'brand' in cols else None
     cat_col = 'myntra_article_type' if 'myntra_article_type' in cols else 'article_type' if 'article_type' in cols else None
     gen_col = 'myntra_gender' if 'myntra_gender' in cols else 'gender' if 'gender' in cols else None
@@ -594,41 +596,52 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
 
     for row in df.itertuples():
         try:
+            # --- 1. Extract Base Data ---
             sku = str(getattr(row, sku_col_name))
             mrp = float(getattr(row, mrp_col_name))
             cost = float(getattr(row, cost_col_name))
 
-            if mrp <= 0 or cost <= 0: continue 
+            if mrp <= 0 or cost <= 0:
+                continue # Skip rows with invalid data
 
+            # --- (NEW) Determine current platform ---
             current_platform = getattr(row, platform_col_name) if bulk_platform == 'Consolidated' else bulk_platform
-            current_platform = str(current_platform).strip()
+            current_platform = str(current_platform).strip() # Ensure it's a clean string
 
+            # --- 2. Extract Platform Data ---
             myntra_brand = getattr(row, brand_col) if current_platform == 'Myntra' and brand_col and hasattr(row, brand_col) else None
             myntra_cat = getattr(row, cat_col) if current_platform == 'Myntra' and cat_col and hasattr(row, cat_col) else None
             myntra_gen = getattr(row, gen_col) if current_platform == 'Myntra' and gen_col and hasattr(row, gen_col) else None
             
             jio_cat = getattr(row, jio_cat_col) if current_platform == 'Jiomart' and jio_cat_col and hasattr(row, jio_cat_col) else None
-            jio_zone = getattr(row, zone_col) if current_platform == 'Jiomart' and zone_col and hasattr(row, zone_col) else 'National' 
-            jio_weight = 0.5 
+            jio_zone = getattr(row, zone_col) if current_platform == 'Jiomart' and zone_col and hasattr(row, zone_col) else 'National' # Default
+            jio_weight = 0.5 # Default
             if current_platform == 'Jiomart' and weight_col and hasattr(row, weight_col):
                 try:
                     weight_val = float(getattr(row, weight_col))
-                    if weight_col == 'product_weight': jio_weight = weight_val / 1000.0
-                    else: jio_weight = weight_val
-                except: jio_weight = 0.5 
+                    if weight_col == 'product_weight': # Assume grams
+                        jio_weight = weight_val / 1000.0
+                    else: # Assume KG
+                        jio_weight = weight_val
+                except (ValueError, TypeError):
+                    jio_weight = 0.5 # Default on error
             
+            # --- 3. Royalty Check ---
             apply_royalty = 'No'
             apply_kuchipoo_royalty = 'No'
             
             if current_platform == 'Myntra':
+                # Myntra logic: STAYS "startswith"
                 is_myntra_royalty_sku = sku.startswith("DKUC") or sku.startswith("MKUC")
                 if myntra_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
                     apply_kuchipoo_royalty = 'Yes'
             else:
+                # Other portals logic: CHANGES TO "in" and INCLUDES MEESHO
                 is_other_portal_royalty_sku = ("DKUC" in sku) or ("MKUC" in sku)
                 if is_other_portal_royalty_sku:
                     apply_royalty = 'Yes'
             
+            # --- 4. Perform Calculation based on mode ---
             output_data = {
                 "SKU": sku,
                 "MRP": mrp,
@@ -638,12 +651,14 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 output_data["Platform"] = current_platform
 
             if mode == 'Check With Selling Price':
+                # --- (NEW) Calculate discount from selling_price ---
                 selling_price = float(getattr(row, selling_price_col_name))
                 discount_amount = mrp - selling_price
-                wdp = selling_price 
+                wdp = selling_price # For Meesho, WDP is the selling price
+                # --- (END NEW) ---
                 
                 (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-                 marketing_fee_base, marketing_fee_gst, final_commission,
+                 marketing_fee_base, current_marketing_fee_rate, final_commission,
                  commission_rate, settled_amount, taxable_amount_value,
                  net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
                  jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
@@ -656,19 +671,17 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                     apply_royalty, 0.0
                 )
                 
-                # IMPORTANT: settled_amount is what platform gives.
-                # Net Profit is after you pay royalty.
+                final_settled = settled_amount - royalty_fee
+                final_profit = net_profit - royalty_fee
                 
+                # --- (MODIFIED) Only output specific columns ---
                 output_data.update({
                     "Selling_Price": selling_price,
-                    "Bank_Settlement_Amount": settled_amount,
-                    "Royalty_You_Pay": royalty_fee,
-                    "Net_Profit_In_Hand": net_profit
+                    "Final_Settled_Amount": final_settled,
+                    "Net_Profit": final_profit
                 })
 
-            else: 
-                # Check With Cost Price (Target Margin)
-                # target_margin is interpreted as Net Profit (After Royalty)
+            else: # Check With Cost Price
                 discount_amount, final_profit, discount_percent = find_discount_for_target_profit(
                     mrp, target_margin, cost, current_platform,
                     myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
@@ -677,49 +690,30 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                     apply_royalty
                 )
                 
-                selling_price_req = (mrp - discount_amount) if discount_amount is not None else "N/A"
-                bank_settlement_amt = "N/A"
-
-                if discount_amount is not None:
-                    wdp_calc = (mrp - discount_amount)
-                    
-                    # Re-run calc to get breakdown
-                    (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-                     marketing_fee_base, marketing_fee_gst, final_commission,
-                     commission_rate, settled_amount, taxable_amount_value,
-                     net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
-                     jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
-                     yk_fixed_fee 
-                    ) = perform_calculations(
-                        mrp, discount_amount, cost, current_platform,
-                        myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
-                        jio_weight, jio_zone, jio_cat, jio_benefit,
-                        meesho_charge, wdp_calc if current_platform == 'Meesho' else None,
-                        apply_royalty, 0.0
-                    )
-                    bank_settlement_amt = settled_amount
-
                 output_data.update({
                     "Target_Margin": target_margin,
-                    "Required_Selling_Price": selling_price_req,
-                    "Bank_Settlement_Amount": bank_settlement_amt,
-                    "Projected_Net_Profit": final_profit if final_profit is not None else "N/A"
+                    "Required_Selling_Price": (mrp - discount_amount) if discount_amount is not None else "N/A",
+                    "Required_Discount_Amount": discount_amount if discount_amount is not None else "N/A",
+                    "Required_Discount_Percent": discount_percent if discount_amount is not None else "N/A",
+                    "Net_Profit_at_Target": final_profit if final_profit is not None else "N/A"
                 })
 
             output_rows.append(output_data)
 
         except Exception as e:
+            st.warning(f"Failed to process SKU {sku}: {e}")
             continue
             
     return pd.DataFrame(output_rows)
 
 
+# --- (NEW) Function to convert DF to CSV ---
 @st.cache_data
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
 # ==============================================================================
-# --- MAIN APP STRUCTURE ---
+# --- (NEW) MAIN APP STRUCTURE ---
 # ==============================================================================
 
 st.title("🛍️ " + FULL_TITLE)
@@ -731,7 +725,11 @@ st.markdown("###### **2. Upload SKU File (CSV or XLSX)**")
 sku_col_1, sku_col_2 = st.columns([3, 1])
 
 with sku_col_1:
-    sku_file = st.file_uploader("Upload your platform-specific or consolidated SKU file:", type=['csv', 'xlsx'])
+    sku_file = st.file_uploader(
+        "Upload your platform-specific or consolidated SKU file:", 
+        type=['csv', 'xlsx'],
+        help="Upload your CSV or Excel file. The app will try to read it based on the platform selected below."
+    )
 
 with sku_col_2:
     if 'sku_df' in st.session_state:
@@ -756,30 +754,98 @@ if sku_file is not None and 'sku_df' not in st.session_state:
         if sku_file.name.endswith('.xlsx'):
             df = pd.read_excel(sku_file, dtype=str, engine='openpyxl')
         else:
+            # --- (FIX) Use utf-8-sig to handle BOM ---
             df = pd.read_csv(sku_file, encoding='utf-8-sig', dtype=str)
         
+        # --- (FIX) Clean column names ---
         df.columns = [str(col).strip().lower().replace(' ', '_') for col in df.columns]
+        
         st.session_state.sku_df = df
-        st.success(f"Successfully loaded {len(df)} SKUs.")
+        st.success(f"Successfully loaded {len(df)} SKUs from {sku_file.name}. You can now use the 'Fetch by SKU' feature.")
+
     except Exception as e:
         st.error(f"Error loading SKU file: {e}")
 
-# --- Templates (Same as before) ---
+# --- (NEW) Two sets of templates ---
 st.markdown("**Download Templates (CSV):**")
-with st.expander("Show Templates"):
-    col1, col2 = st.columns(2)
+with st.expander("Templates for 'Check With Selling Price' (Profit Calc)"):
+    # st.info("In files ko use karein jab aapke paas 'selling_price' hai aur aap 'Net_Profit' calculate karna chahte hain.")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
     with col1:
-        myntra_template_csv = "seller_sku_code,product_mrp,product_cost,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
-        st.download_button("Myntra Template", data=myntra_template_csv, file_name="template_target_myntra.csv", mime="text/csv")
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,selling_price,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,1499,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,1399,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,1299,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,1199,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,1099,,,,,,,,Test Meesho\n"
+        st.download_button(
+            label="Consolidated", data=consolidated_template_csv, file_name="template_profit_consolidated.csv", mime="text/csv", use_container_width=True
+        )
     with col2:
-        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\n"
-        st.download_button("Consolidated Template", data=consolidated_template_csv, file_name="template_target_consolidated.csv", mime="text/csv")
+        myntra_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,1599,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
+        st.download_button(
+            label="Myntra", data=myntra_template_csv, file_name="template_profit_myntra.csv", mime="text/csv", use_container_width=True
+        )
+    with col3:
+        jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,1499,Tshirts,0.5,National\n"
+        st.download_button(
+            label="Jiomart", data=jiomart_template_csv, file_name="template_profit_jiomart.csv", mime="text/csv", use_container_width=True
+        )
+    with col4:
+        ajio_fc_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-003,1799,400,1399\n"
+        st.download_button(
+            label="Ajio / FirstCry", data=ajio_fc_template_csv, file_name="template_profit_ajio_firstcry.csv", mime="text/csv", use_container_width=True
+        )
+    with col5:
+        snapdeal_template_csv = "sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-004,1699,350,1299\n"
+        st.download_button(
+            label="Snapdeal", data=snapdeal_template_csv, file_name="template_profit_snapdeal.csv", mime="text/csv", use_container_width=True
+        )
+    with col6:
+        meesho_template_csv = "seller_sku_code,product_mrp,product_cost,selling_price\nDKUC-TEST-005,1599,300,1199\n"
+        st.download_button(
+            label="Meesho", data=meesho_template_csv, file_name="template_profit_meesho.csv", mime="text/csv", use_container_width=True
+        )
+
+with st.expander("Templates for 'Check With Cost Price' (Target Margin)"):
+    # st.info("In files ko use karein jab aap 'Target Margin' set karke 'Required_Selling_Price' calculate karna chahte hain.")
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    
+    with col1:
+        consolidated_template_csv = "platform,seller_sku_code,product_mrp,product_cost,myntra_brand,myntra_article_type,myntra_gender,jiomart_category,product_weight_kg,shipping_zone,style_id,style_name\nMyntra,DKUC-MYN-001,1999,500,KUCHIPOO,Tshirts,Boys,,,,123456,Test Myntra\nJiomart,DKUC-JIO-002,1899,450,,,,Tshirts,0.5,National,,Test Jiomart\nAjio,MKUC-AJO-003,1799,400,,,,,,,,Test Ajio\nFirstCry,DKUC-FC-004,1699,350,,,,,,,,Test FirstCry\nSnapdeal,MKUC-SNP-005,1599,300,,,,,,,,Test Snapdeal\nMeesho,DKUC-MSH-006,1499,250,,,,,,,,Test Meesho\n"
+        st.download_button(
+            label="Consolidated", data=consolidated_template_csv, file_name="template_target_consolidated.csv", mime="text/csv", use_container_width=True
+        )
+    with col2:
+        myntra_template_csv = "seller_sku_code,product_mrp,product_cost,brand,article_type,gender,style_id,style_name\nDKUC-TEST-001,1999,500,KUCHIPOO,Tshirts,Boys,123456,Test Style\n"
+        st.download_button(
+            label="Myntra", data=myntra_template_csv, file_name="template_target_myntra.csv", mime="text/csv", use_container_width=True
+        )
+    with col3:
+        jiomart_template_csv = "seller_sku_code,product_mrp,product_cost,jiomart_category,product_weight_kg,shipping_zone\nDKUC-TEST-002,1899,450,Tshirts,0.5,National\n"
+        st.download_button(
+            label="Jiomart", data=jiomart_template_csv, file_name="template_target_jiomart.csv", mime="text/csv", use_container_width=True
+        )
+    with col4:
+        ajio_fc_template_csv = "seller_sku_code,product_mrp,product_cost\nDKUC-TEST-003,1799,400\n"
+        st.download_button(
+            label="Ajio / FirstCry", data=ajio_fc_template_csv, file_name="template_target_ajio_firstcry.csv", mime="text/csv", use_container_width=True
+        )
+    with col5:
+        snapdeal_template_csv = "sku_code,product_mrp,product_cost\nDKUC-TEST-004,1699,350\n"
+        st.download_button(
+            label="Snapdeal", data=snapdeal_template_csv, file_name="template_target_snapdeal.csv", mime="text/csv", use_container_width=True
+        )
+    with col6:
+        meesho_template_csv = "seller_sku_code,product_mrp,product_cost\nDKUC-TEST-005,1599,300\n"
+        st.download_button(
+            label="Meesho", data=meesho_template_csv, file_name="template_target_meesho.csv", mime="text/csv", use_container_width=True
+        )
 
 st.divider()
 
+# ==============================================================================
+# --- (MODE 1) SINGLE PRODUCT CALCULATION ---
+# ==============================================================================
 if main_mode == "Single Product Calculation":
     
-    if st.session_state.password_correct: 
+    if st.session_state.password_correct: # --- (NEW) Password Check ---
 
         st.markdown("###### **3. Select Calculation Mode**")
         single_calc_mode = st.radio(
@@ -799,46 +865,155 @@ if main_mode == "Single Product Calculation":
 
         def lookup_sku():
             sku = st.session_state.get('sku_select_key', '').strip() 
-            if not sku or sku == "Select SKU...": return
+            
+            if 'myntra_brand_v3' in st.session_state: del st.session_state.myntra_brand_v3
+            if 'myntra_cat_v3' in st.session_state: del st.session_state.myntra_cat_v3
+            if 'myntra_gen_v3' in st.session_state: del st.session_state.myntra_gen_v3
+            if 'new_mrp' in st.session_state: del st.session_state.new_mrp
+            if 'style_id_display' in st.session_state: del st.session_state.style_id_display
+            if 'single_cost' in st.session_state: del st.session_state.single_cost
+            if 'jiomart_category_selector' in st.session_state: del st.session_state.jiomart_category_selector
+            if 'single_weight' in st.session_state: del st.session_state.single_weight
+            if 'single_zone' in st.session_state: del st.session_state.single_zone
+            
+            if not sku or sku == "Select SKU...": 
+                st.session_state.sku_message = None
+                return
 
             if 'sku_df' in st.session_state:
                 sku_df = st.session_state.sku_df
+                platform = st.session_state.get('platform_selector_key', 'Myntra')
                 cols = sku_df.columns
-                sku_col_name = 'seller_sku_code' if 'seller_sku_code' in cols else 'sku_code'
-                mrp_col_name = 'product_mrp' if 'product_mrp' in cols else 'mrp'
-                cost_col_name = 'product_cost' if 'product_cost' in cols else 'cost_price'
+
+                sku_col_name = None
+                if 'seller_sku_code' in cols:
+                    sku_col_name = 'seller_sku_code'
+                elif 'sku_code' in cols: 
+                    sku_col_name = 'sku_code'
+                
+                if not sku_col_name:
+                    st.session_state.sku_message = "SKU column not found (need 'seller_sku_code' or 'sku_code')"
+                    return
+
+                mrp_col_name = None
+                if 'product_mrp' in cols: 
+                    mrp_col_name = 'product_mrp'
+                elif 'mrp' in cols: 
+                    mrp_col_name = 'mrp'
+                elif 'product_mrp_' in cols: 
+                     mrp_col_name = 'product_mrp_' 
+                
+                if not mrp_col_name:
+                    st.session_state.sku_message = "MRP column not found (need 'product_mrp' or 'mrp')"
+                    return
+
+                cost_col_name = None
+                if 'product_cost' in cols: 
+                    cost_col_name = 'product_cost'
+                elif 'cost_price' in cols: 
+                    cost_col_name = 'cost_price'
+
+                if not cost_col_name:
+                    st.session_state.sku_message = "Cost column not found (need 'product_cost' or 'cost_price')"
+                    return
                 
                 result = sku_df[sku_df[sku_col_name].astype(str).str.lower() == sku.lower()]
                 
                 if not result.empty:
                     row = result.iloc[0]
-                    try: st.session_state.new_mrp = float(row[mrp_col_name])
-                    except: pass
-                    try: st.session_state.single_cost = float(row[cost_col_name])
-                    except: pass
+                    
+                    try:
+                        st.session_state.new_mrp = float(row[mrp_col_name])
+                    except (ValueError, TypeError, KeyError): pass
+                    
+                    try:
+                        st.session_state.single_cost = float(row[cost_col_name])
+                    except (ValueError, TypeError, KeyError): pass
 
-                    if platform_selector == 'Myntra':
-                        brand_col = 'myntra_brand' if 'myntra_brand' in cols else 'brand' 
-                        cat_col = 'myntra_article_type' if 'myntra_article_type' in cols else 'article_type'
-                        gen_col = 'myntra_gender' if 'myntra_gender' in cols else 'gender'
-                        if brand_col in row: st.session_state.myntra_brand_v3 = row[brand_col]
-                        if cat_col in row: st.session_state.myntra_cat_v3 = row[cat_col]
-                        if gen_col in row: st.session_state.myntra_gen_v3 = row[gen_col]
+                    if 'style_id' in cols:
+                        st.session_state.style_id_display = row['style_id']
+
+                    if platform == 'Myntra':
+                        brand_col = 'myntra_brand' if 'myntra_brand' in cols else 'brand' if 'brand' in cols else None
+                        cat_col = 'myntra_article_type' if 'myntra_article_type' in cols else 'article_type' if 'article_type' in cols else None
+                        gen_col = 'myntra_gender' if 'myntra_gender' in cols else 'gender' if 'gender' in cols else None
+
+                        if brand_col: st.session_state.myntra_brand_v3 = row[brand_col]
+                        if cat_col: st.session_state.myntra_cat_v3 = row[cat_col]
+                        if gen_col: st.session_state.myntra_gen_v3 = row[gen_col]
+                            
+                    elif platform == 'Jiomart':
+                        cat_col = 'jiomart_category' if 'jiomart_category' in cols else 'category' if 'category' in cols else None
+                        weight_col = 'product_weight_kg' if 'product_weight_kg' in cols else 'product_weight' if 'product_weight' in cols else None
+                        zone_col = 'shipping_zone' if 'shipping_zone' in cols else None
+
+                        if cat_col: st.session_state.jiomart_category_selector = row[cat_col]
+                        if zone_col: st.session_state.single_zone = row[zone_col]
+                        
+                        if weight_col:
+                            try:
+                                weight_val = float(row[weight_col])
+                                if weight_col == 'product_weight': # Assume grams
+                                    st.session_state.single_weight = weight_val / 1000.0
+                                else: # Assume KG
+                                    st.session_state.single_weight = weight_val
+                            except (ValueError, TypeError): 
+                                pass # Keep default
+
+                    style_name_col = 'style_name' if 'style_name' in cols else sku_col_name
+                    st.session_state.sku_message = f"✅ Fetched: {row.get(style_name_col, sku)}"
+                else:
+                    st.session_state.sku_message = f"SKU '{sku}' not found."
 
         if 'sku_df' in st.session_state:
-            sku_df = st.session_state.sku_df 
-            cols = sku_df.columns
-            sku_col_name = 'seller_sku_code' if 'seller_sku_code' in cols else 'sku_code'
             
-            if sku_col_name:
-                sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df[sku_col_name].dropna().unique().tolist())
-                st.selectbox("**Fetch by SKU:**", options=sku_options, key="sku_select_key", on_change=lookup_sku)
+            sku_lookup_col1, sku_lookup_col2 = st.columns(2)
+            
+            with sku_lookup_col1:
+                sku_df = st.session_state.sku_df 
+                cols = sku_df.columns
+                
+                sku_col_name = None
+                if 'seller_sku_code' in cols:
+                    sku_col_name = 'seller_sku_code'
+                elif 'sku_code' in cols: # For Snapdeal
+                    sku_col_name = 'sku_code'
+                
+                if sku_col_name:
+                    sku_options = ["Select SKU..."] + sorted(st.session_state.sku_df[sku_col_name].dropna().unique().tolist())
+                    st.selectbox(
+                        "**Fetch by SKU:**",
+                        options=sku_options,
+                        key="sku_select_key",
+                        on_change=lookup_sku,
+                        help="Select a Seller SKU Code to fetch details."
+                    )
+                else:
+                    st.error("Could not find a valid SKU column in your file (e.g., 'seller_sku_code' or 'sku_code'). Please check your file.")
+
+            
+            with sku_lookup_col2:
+                st.text_input(
+                    "**Style ID:**",
+                    value="", 
+                    disabled=True,
+                    key="style_id_display" 
+                )
+
+            if 'sku_message' in st.session_state and st.session_state.sku_message:
+                if "✅" not in st.session_state.sku_message: 
+                    st.warning(st.session_state.sku_message)
+
+        if 'sku_df' not in st.session_state:
+            st.info("Upload your SKU file (CSV or XLSX) at the top of the page to enable SKU lookup.")
+
 
         st.markdown("###### **4. Configuration Settings**")
 
         myntra_new_brand = None
         myntra_new_category = None
         myntra_new_gender = None
+
         jiomart_category = None
         jiomart_benefit_rate = 0.0
         weight_in_kg = 0.0
@@ -846,157 +1021,348 @@ if main_mode == "Single Product Calculation":
         meesho_charge_rate = 0.0
         apply_royalty = 'No' 
 
+        def brand_changed():
+            if 'myntra_cat_v3' in st.session_state:
+                del st.session_state.myntra_cat_v3
+            if 'myntra_gen_v3' in st.session_state:
+                del st.session_state.myntra_gen_v3
+
+        def category_changed():
+            if 'myntra_gen_v3' in st.session_state:
+                del st.session_state.myntra_gen_v3
+
+
         if platform_selector == 'Myntra':
+            # st.info("Myntra calculation is based on new v3 rules (Slab-based Fixed Fee & Commission).")
+            
             col_brand, col_cat, col_gen = st.columns(3)
+            
             brand_options = list(MYNTRA_COMMISSION_DATA.keys())
-            myntra_new_brand = col_brand.selectbox("Select Brand:", brand_options, key="myntra_brand_v3")
+            myntra_new_brand = col_brand.selectbox(
+                "Select Brand:", brand_options, 
+                key="myntra_brand_v3", 
+                on_change=brand_changed
+            )
             
             try:
                 category_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand].keys())
-                myntra_new_category = col_cat.selectbox("Select Category:", category_options, key="myntra_cat_v3")
+                myntra_new_category = col_cat.selectbox(
+                    "Select Category:", category_options, 
+                    key="myntra_cat_v3", 
+                    on_change=category_changed
+                )
             except KeyError:
                 category_options = []
-                myntra_new_category = col_cat.selectbox("Select Category:", category_options, index=0, key="myntra_cat_v3")
-            
+                myntra_new_category = col_cat.selectbox(
+                    "Select Category:", category_options, 
+                    index=0, 
+                    key="myntra_cat_v3"
+                )
+            except Exception as e:
+                st.error(f"An error occurred with Category selection: {e}")
+                st.stop()
+                
             try:
                 gender_options = list(MYNTRA_COMMISSION_DATA[myntra_new_brand][myntra_new_category].keys())
-                myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, key="myntra_gen_v3")
+                myntra_new_gender = col_gen.selectbox(
+                    "Select Gender:", gender_options, 
+                    key="myntra_gen_v3" 
+                )
             except KeyError:
                  gender_options = []
-                 myntra_new_gender = col_gen.selectbox("Select Gender:", gender_options, index=0, key="myntra_gen_v3")
-
+                 myntra_new_gender = col_gen.selectbox(
+                    "Select Gender:", gender_options, 
+                    index=0, 
+                    key="myntra_gen_v3"
+                 )
+            except Exception as e:
+                st.error(f"An error occurred with Gender selection: {e}")
+                st.stop()
+            
+            
 
         elif platform_selector == 'Jiomart':
             col_jio_cat, col_jio_benefit = st.columns(2)
             jiomart_category_options = ["Select Category"] + sorted(list(JIOMART_COMMISSION_RATES.keys()))
-            selected_jiomart_category = col_jio_cat.selectbox("Product Category:", jiomart_category_options, index=0)
+            selected_jiomart_category = col_jio_cat.selectbox(
+                "Product Category for Commission Rate:",
+                jiomart_category_options, index=0, key="jiomart_category_selector"
+            )
             jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
-            jiomart_benefit_rate = col_jio_benefit.number_input("Benefit Rate (%)", value=1.0) / 100.0
             
+            jiomart_benefit_rate = col_jio_benefit.number_input(
+                "Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f", 
+                help="Flat Brand Fee Benefit Rate applied to Sale Price.", key="flat_benefit_rate"
+            ) / 100.0
+            
+            st.markdown("##### **Jiomart Shipping & Logistics**")
             col_weight, col_zone = st.columns(2)
-            weight_in_kg = col_weight.number_input("Product Weight (KG)", value=0.5)
-            shipping_zone = col_zone.selectbox("Shipping Zone:", ('Local', 'Regional', 'National'))
+            weight_in_kg = col_weight.number_input(
+                "Product Weight (KG)", min_value=0.1, value=0.5, step=0.1, format="%.2f", key="single_weight"
+            )
+            shipping_zone = col_zone.selectbox(
+                "Shipping Zone:", ('Local', 'Regional', 'National'), index=0, key="single_zone"
+            )
 
         elif platform_selector == 'Meesho':
-            meesho_charge_percent = st.number_input("Meesho Platform Charge (%)", value=5.0) / 100.0
+            meesho_charge_percent = st.number_input(
+                "Meesho Platform Charge (%)", min_value=0.0, max_value=10.0, value=5.0, step=0.1, format="%.2f",
+                key="meesho_charge_rate_single"
+            ) / 100.0
             meesho_charge_rate = meesho_charge_percent
             
+        # --- (DELETED) Manual radio button for other platforms ---
+
+
         col_cost, col_target = st.columns(2)
-        product_cost = col_cost.number_input("Product Cost (₹)", min_value=0.0, value=1000.0, key="single_cost")
-        
-        target_label = "Target Net Profit (₹)"
-        product_margin_target_rs = col_target.number_input(target_label, min_value=0.0, value=200.0, key="single_target", help="Net Profit you want in hand AFTER paying Royalty")
-        
+        product_cost = col_cost.number_input("Product Cost (₹)", min_value=0.0, value=1000.0, step=10.0, key="single_cost")
+        product_margin_target_rs = col_target.number_input("Add Margin Amount (₹)", min_value=0.0, value=200.0, step=10.0, key="single_target")
         st.divider()
 
         col_mrp_in, col_price_in = st.columns(2)
-        new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, key="new_mrp")
+
+        new_mrp = col_mrp_in.number_input("Product MRP (₹)", min_value=1.0, value=2500.0, step=10.0, key="new_mrp") # Step change
 
         new_discount = 0.0
         wrong_defective_price = None
 
         if platform_selector == 'Meesho':
-            if single_calc_mode != 'Check With Cost Price':
-                wrong_defective_price = col_price_in.number_input("Selling Price (WDP) (₹)", value=min(new_mrp, 2000.0))
+            if single_calc_mode == 'Check With Cost Price':
+                col_price_in.info(f"WDP will be calculated to achieve Margin Amount of ₹ {product_margin_target_rs:,.2f}")
+            else:
+                wrong_defective_price = col_price_in.number_input(
+                    "Selling Price (WDP) (₹)", min_value=0.0, max_value=new_mrp, value=min(new_mrp, 2000.0), step=10.0, 
+                    key="meesho_wdp_manual"
+                )
+
         else:
             if single_calc_mode == 'Check With Selling Price':
-                new_discount = col_price_in.number_input("Discount Amount (₹)", value=500.0)
+                new_discount = col_price_in.number_input("Discount Amount (₹)", min_value=0.0, max_value=new_mrp, value=500.0, step=10.0, key="new_discount_manual")
+            else:
+                col_price_in.info(f"Targeting an 'Add Margin Amount' of ₹ {product_margin_target_rs:,.2f}...")
 
         st.divider()
 
         if new_mrp > 0 and product_cost > 0:
             
-            apply_kuchipoo_royalty = 'No' 
-            apply_royalty = 'No' 
-            
-            if 'sku_df' in st.session_state:
-                selected_sku = st.session_state.get('sku_select_key', '').strip()
-                if platform_selector == 'Myntra':
-                    is_myntra_royalty_sku = selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC"))
-                    if myntra_new_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
-                        apply_kuchipoo_royalty = 'Yes'
-                        st.success(f"Royalty Active: 10% (SKU: {selected_sku})")
-                else:
-                    is_other_portal_royalty_sku = selected_sku and (("DKUC" in selected_sku) or ("MKUC" in selected_sku))
-                    if is_other_portal_royalty_sku:
-                        apply_royalty = 'Yes'
-                        st.success(f"Royalty Active: 10% (SKU: {selected_sku})")
+            if platform_selector == 'Jiomart' and jiomart_category is None:
+                st.warning("Please select a **Product Category** for Jiomart Commission calculation.")
+                st.stop()
+            if platform_selector == 'Myntra' and not all([myntra_new_brand, myntra_new_category, myntra_new_gender]):
+                st.warning("Please select a **Brand, Category, and Gender** for Myntra calculation.")
+                st.stop()
 
-            # --- PERFORM CALCULATION ---
-            if single_calc_mode == 'Check With Cost Price':
-                calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
-                    new_mrp, product_margin_target_rs, product_cost, platform_selector,
-                    myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, 
-                    weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
-                    meesho_charge_rate, None, apply_royalty
-                )
+            try:
+                apply_kuchipoo_royalty = 'No' 
+                apply_royalty = 'No' # Reset for others
                 
-                if calculated_discount is None:
-                    st.error(f"Cannot achieve Target Profit. Max possible profit at MRP is ₹ {initial_max_profit:,.2f}.")
-                    st.stop()
+                if 'sku_df' in st.session_state:
+                    selected_sku = st.session_state.get('sku_select_key', '').strip()
+
+                    if platform_selector == 'Myntra':
+                        # Myntra logic: STAYS "startswith"
+                        is_myntra_royalty_sku = selected_sku and (selected_sku.startswith("DKUC") or selected_sku.startswith("MKUC"))
+                        if myntra_new_brand == 'KUCHIPOO' and is_myntra_royalty_sku:
+                            apply_kuchipoo_royalty = 'Yes'
+                        
+                        if selected_sku and selected_sku != "Select SKU...":
+                            if myntra_new_brand == 'KUCHIPOO':
+                                if apply_kuchipoo_royalty == 'Yes':
+                                    st.success(f"Auto-applied 10% Kuchipoo Royalty (SKU: {selected_sku})")
+                                else:
+                                    st.info(f"Kuchipoo brand selected, but no royalty applied (SKU: {selected_sku})")
                     
-                new_discount = calculated_discount
-                if platform_selector == 'Meesho':
-                    wrong_defective_price = new_mrp - calculated_discount
+                    else: # --- (CHANGED) All other platforms, including Meesho ---
+                        # Other portals logic: CHANGES TO "in"
+                        is_other_portal_royalty_sku = selected_sku and (("DKUC" in selected_sku) or ("MKUC" in selected_sku))
+                        if is_other_portal_royalty_sku:
+                            apply_royalty = 'Yes' # This is the key for OTHER platforms
+                    
+                        if selected_sku and selected_sku != "Select SKU...":
+                            if apply_royalty == 'Yes':
+                                st.success(f"Auto-applied 10% Royalty (SKU: {selected_sku})")
+                            else:
+                                st.info(f"No royalty applied (SKU: {selected_sku})")
 
-            # Final Detailed Run
-            (sale_price, gt_charge, customer_paid_amount, royalty_fee,
-             marketing_fee_base, marketing_fee_gst, final_commission,
-             commission_rate, settled_amount, taxable_amount_value,
-             net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
-             jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
-             yk_fixed_fee 
-             ) = perform_calculations(
-                 new_mrp, new_discount, product_cost, platform_selector,
-                 myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, 
-                 weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
-                 meesho_charge_rate, wrong_defective_price,
-                 apply_royalty, 0.0 
-             )
-
-            col_left, col_right = st.columns(2)
-
-            with col_left:
-                st.markdown("### 1. Invoice & Sales")
-                st.metric("Selling Price", f"₹ {sale_price:,.2f}")
-                st.metric("Discount", f"₹ {new_discount:,.2f}")
+                elif 'sku_df' not in st.session_state:
+                     st.warning("SKU file not loaded. Automatic Royalty check is disabled.")
                 
-                st.markdown("### 2. Platform Deductions")
-                c1, c2 = st.columns(2)
-                c1.metric("Commission (+GST)", f"₹ {final_commission:,.2f}")
-                c2.metric("Fixed/Logistics (+GST)", f"₹ {gt_charge + yk_fixed_fee:,.2f}")
                 
-                if platform_selector == 'Myntra':
-                    c3, c4 = st.columns(2)
-                    c3.metric("Marketing Base", f"₹ {marketing_fee_base:,.2f}")
-                    c4.metric("Marketing GST (18%)", f"₹ {marketing_fee_gst:,.2f}")
+                if single_calc_mode == 'Check With Cost Price':
+                    calculated_discount, initial_max_profit, calculated_discount_percent = find_discount_for_target_profit(
+                        new_mrp, product_margin_target_rs, product_cost, platform_selector,
+                        myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, 
+                        weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
+                        meesho_charge_rate, None, 
+                        apply_royalty
+                    )
+                    
+                    if calculated_discount is None:
+                        st.error(f"Cannot achieve the Target Margin of ₹ {product_margin_target_rs:,.2f}. The maximum possible Net Profit at 0% discount is ₹ {initial_max_profit:,.2f}.")
+                        st.stop()
+                        
+                    new_discount = calculated_discount
+                    if platform_selector == 'Meesho':
+                        wrong_defective_price = new_mrp - calculated_discount
 
-                total_deductions_display = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base + marketing_fee_gst
-                st.info(f"Total Platform Deductions: ₹ {total_deductions_display:,.2f}")
+                (sale_price, gt_charge, customer_paid_amount, royalty_fee,
+                 marketing_fee_base, current_marketing_fee_rate, final_commission,
+                 commission_rate, settled_amount, taxable_amount_value,
+                 net_profit, tds, tcs, invoice_tax_rate, jiomart_fixed_fee_base, jiomart_shipping_fee_base,
+                 jiomart_benefit_amount, jiomart_total_fee_base, jiomart_final_applicable_fee_base, jiomart_gst_on_fees,
+                 yk_fixed_fee 
+                 ) = perform_calculations(
+                     new_mrp, new_discount, product_cost, platform_selector,
+                     myntra_new_brand, myntra_new_category, myntra_new_gender, apply_kuchipoo_royalty, 
+                     weight_in_kg, shipping_zone, jiomart_category, jiomart_benefit_rate,
+                     meesho_charge_rate, wrong_defective_price,
+                     apply_royalty, 0.0 
+                 )
 
-            with col_right:
-                st.markdown("### 3. Settlement & Profit")
                 
-                st.metric("🏦 Bank Settlement (From Platform)", f"₹ {settled_amount:,.2f}", 
-                          help="This amount will come to your bank account from Myntra/Platform.")
-                
-                st.markdown("---")
-                st.write("**Your Expenses after Settlement:**")
-                ex1, ex2 = st.columns(2)
-                ex1.metric("Product Cost", f"₹ {product_cost:,.2f}")
-                ex2.metric("Royalty (You Pay)", f"₹ {royalty_fee:,.2f}", delta="Pay Externally", delta_color="inverse")
-                
-                st.markdown("---")
-                st.metric("💰 NET PROFIT (In Hand)", f"₹ {net_profit:,.2f}", delta=f"Target: ₹ {product_margin_target_rs:,.2f}")
+                settled_amount = settled_amount - royalty_fee
+                net_profit = net_profit - royalty_fee
 
-    else: 
-        st.warning("Locked.")
-        if st.text_input("Password", type="password") == "4255":
+
+                target_profit = product_margin_target_rs
+                delta_value = net_profit - target_profit
+                current_margin_percent = (net_profit / product_cost) * 100 if product_cost > 0 else 0.0
+                delta_label = f"vs Margin: ₹ {delta_value:,.2f}"
+                delta_color = "normal" if net_profit >= target_profit else "inverse"
+
+                col_left, col_right = st.columns(2)
+
+                with col_left:
+                    st.markdown("###### **Sales, Fixed Charges & Invoice Value**")
+                    col1_l, col2_l, col3_l = st.columns(3)
+                    col1_l.metric(label="Product MRP (₹)", value=f"₹ {new_mrp:,.2f}")
+                    
+                    if platform_selector == 'Meesho':
+                        display_wdp = sale_price 
+                        calculated_discount = new_mrp - display_wdp
+                        discount_percent = (calculated_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+                        col2_l.metric(label="Discount Amount (MRP - WDP)", value=f"₹ {calculated_discount:,.2f}", delta=f"{discount_percent:,.2f}% of MRP", delta_color="off")
+                        col3_l.metric(label="Sale Price (WDP)", value=f"₹ {sale_price:,.2f}")
+                        st.markdown("---")
+                        col4_l, col5_l = st.columns(2)
+                        col4_l.metric(label="Fixed/Shipping Charges", value="₹ 0.00")
+                        col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                    
+                    else:
+                        discount_percent = (new_discount / new_mrp) * 100 if new_mrp > 0 else 0.0
+                        col2_l.metric(label="Discount Amount", value=f"₹ {new_discount:,.2f}", delta=f"{discount_percent:,.2f}% of MRP", delta_color="off")
+                        
+                        col3_l.metric(label="Sale Price (₹)", value=f"₹ {sale_price:,.2f}")
+                        st.markdown("---")
+                        
+                        if platform_selector == 'Jiomart':
+                            st.markdown("###### **Jiomart Fee Breakup (Base)**")
+                            col4_l, col5_l, col6_l, col7_l = st.columns(4)
+                            comm_base_display = jiomart_total_fee_base - jiomart_fixed_fee_base - jiomart_shipping_fee_base
+                            col4_l.metric(label="1. Comm Fee Base", value=f"₹ {comm_base_display:,.2f}")
+                            col5_l.metric(label="2. Fixed Fee Base", value=f"₹ {jiomart_fixed_fee_base:,.2f}")
+                            col6_l.metric(label="3. Shipping Fee Base", value=f"₹ {jiomart_shipping_fee_base:,.2f}")
+                            col7_l.metric(label="Total Fee (1+2+3)", value=f"₹ {jiomart_total_fee_base:,.2f}")
+                            st.markdown("---")
+                            col8_l, col9_l, col10_l = st.columns(3)
+                            col8_l.metric(label=f"Benefit ({jiomart_benefit_rate * 100:,.2f}%)", value=f"₹ {abs(jiomart_benefit_amount):,.2f}", delta="Deduction from Fees", delta_color="normal")
+                            col9_l.metric(label="Final Applicable Fee (B)", value=f"₹ {jiomart_final_applicable_fee_base:,.2f}")
+                            col10_l.metric(label="GST @ 18% (C) on (B)", value=f"₹ {jiomart_gst_on_fees:,.2f}")
+                            st.markdown("---")
+                            st.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                            
+                        else:
+                            
+                            if platform_selector == 'Myntra':
+                                col4_l, col5_l, col6_l = st.columns(3)
+                                col4_l.metric(label="GT Charges (Incl. GST)", value=f"₹ {gt_charge:,.2f}")
+                                col5_l.metric(label="YK Fixed Fee (Incl. GST)", value=f"₹ {yk_fixed_fee:,.2f}")
+                                col6_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                            else:
+                                col4_l, col5_l = st.columns(2)
+                                fixed_charge_label = "Fixed/Shipping Charge"
+                                
+                                if platform_selector == 'Ajio':
+                                    fixed_charge_label = "SCM Charges (Incl. GST)"
+                                elif platform_selector == 'Snapdeal':
+                                    fixed_charge_label = "RO Fee (Incl. Tax)"
+                                elif platform_selector == 'FirstCry':
+                                    fixed_charge_label = "Fixed Charges"
+                                    
+                                col4_l.metric(label=fixed_charge_label, value=f"₹ {gt_charge:,.2f}")
+                                col5_l.metric(label="**Invoice Value (CPA)**", value=f"₹ {customer_paid_amount:,.2f}")
+                                
+                            
+
+
+                with col_right:
+                    st.markdown("###### **Deductions (Charges)**")
+                    # --- (CHANGED) Set columns to 3 ---
+                    col1_r, col2_r, col3_r = st.columns(3)
+
+                    platform_fee_label = "Platform Fee (Incl. GST)"
+                    platform_fee_value = final_commission
+                    
+                    if platform_selector == 'Jiomart':
+                        platform_fee_label = "**Total Platform Fee (B+C)**"
+                        platform_fee_value = jiomart_final_applicable_fee_base + jiomart_gst_on_fees
+                    elif platform_selector == 'FirstCry':
+                        platform_fee_label = "**Flat Deduction (42%)**"
+                    elif platform_selector == 'Meesho':
+                         platform_fee_label = f"Meesho Fee ({meesho_charge_rate*100:.2f}% + Tax)"
+                    elif platform_selector == 'Ajio':
+                        platform_fee_label = "Commission (Incl. GST)"
+                    elif platform_selector == 'Snapdeal':
+                        platform_fee_label = "Commission (Incl. GST)"
+                    elif platform_selector == 'Myntra':
+                        platform_fee_label = "Commission (Incl. GST)"
+
+                    col1_r.metric(label=platform_fee_label, value=f"₹ {platform_fee_value:,.2f}")
+                    
+                    
+                    col2_r.metric(label="Royalty Fee", value=f"₹ {royalty_fee:,.2f}")
+                    
+                    # --- (NEW) Display Marketing Fee ---
+                    col3_r.metric(label="Marketing Fee", value=f"₹ {marketing_fee_base:,.2f}")
+                    # --- (END NEW) ---
+
+                    col4_r, col5_r, col6_r = st.columns(3)
+                    col4_r.metric(label=f"Taxable Value (GST @ {invoice_tax_rate*100:.0f}%)", value=f"₹ {taxable_amount_value:,.2f}")
+                    col5_r.metric(label="TDS (0.1% on Taxable)", value=f"₹ {abs(tds):,.2f}")
+                    col6_r.metric(label="TCS (10% on Tax Amt)", value=f"₹ {abs(tcs):,.2f}")
+                    st.markdown("---")
+                    
+                    st.markdown("###### **Final Payout and Profit**")
+                    col7_r, col8_r = st.columns(2)
+                    col7_r.metric(label="**FINAL SETTLED AMOUNT**", value=f"₹ {settled_amount:,.2f}")
+                    col8_r.metric(
+                        label=f"**NET PROFIT ({current_margin_percent:,.2f}% Margin)**",
+                        value=f"₹ {net_profit:,.2f}",
+                        delta=delta_label, delta_color=delta_color
+                    )
+
+            except Exception as e:
+                st.error(f"An error occurred during calculation: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+        else:
+            st.info("Please enter a valid MRP and Product Cost to start the calculation.")
+
+    else: # --- (NEW) Password Input Screen ---
+        st.warning("🔒 'Single Product Calculation' mode is locked.")
+        password = st.text_input("Enter Admin Password:", type="password", key="admin_password")
+        if password == "4255":
             st.session_state.password_correct = True
             st.rerun()
+        elif password != "":
+            st.error("Incorrect password.")
 
+
+# ==============================================================================
+# --- (MODE 2) BULK CALCULATION ---
+# ==============================================================================
 elif main_mode == "Bulk Calculation":
-    
+
     st.markdown("###### **3. Configure Bulk Calculation**")
     
     col1_bulk, col2_bulk = st.columns(2)
@@ -1006,7 +1372,8 @@ elif main_mode == "Bulk Calculation":
             "Select Platform:",
             ('Consolidated', 'Myntra', 'FirstCry', 'Ajio', 'Jiomart', 'Meesho', 'Snapdeal'),
             index=0, 
-            key="bulk_platform_selector"
+            key="bulk_platform_selector",
+            help="Select 'Consolidated' if your file has a 'platform' column for each row."
         )
     
     with col2_bulk:
@@ -1023,24 +1390,35 @@ elif main_mode == "Bulk Calculation":
 
     # --- Global Inputs for Bulk ---
     bulk_target_margin = 0.0
-    bulk_meesho_charge_rate = 0.05 
+    bulk_meesho_charge_rate = 0.05 # --- (CHANGED) Default set to 5% ---
     bulk_jiomart_benefit_rate = 0.0
 
     if bulk_calc_mode == 'Check With Selling Price':
-        pass 
-    else: 
+        pass # --- (REMOVED) st.info("For 'Check With Selling Price' mode, please ensure your file has a 'selling_price' column.") ---
+    else: # Check With Cost Price
         bulk_target_margin = st.number_input("Target Margin Amount (₹) (per SKU)", min_value=0.0, value=100.0, step=10.0)
 
+    # --- Platform-specific Inputs for Bulk ---
     if bulk_platform == 'Jiomart' or bulk_platform == 'Consolidated':
-        bulk_jiomart_benefit_rate = st.number_input("Default Jiomart Benefit Rate (%)", value=1.0) / 100.0
+        # --- (REMOVED) st.info("For Jiomart rows, please ensure...") ---
+        bulk_jiomart_benefit_rate = st.number_input(
+            "Default Jiomart Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f",
+            help="This flat benefit rate will be applied to all Jiomart SKUs."
+        ) / 100.0
+    
+    if bulk_platform == 'Myntra' or bulk_platform == 'Consolidated':
+        pass # --- (REMOVED) st.info("For Myntra rows, please ensure...") ---
+
+    if bulk_platform == 'Meesho' or bulk_platform == 'Consolidated':
+        pass # --- (REMOVED) Entire st.number_input block for Meesho charge ---
 
     st.divider()
 
     if st.button("Run Bulk Calculation", use_container_width=True, type="primary"):
         if 'sku_df' not in st.session_state:
-            st.error("Please upload an SKU file first.")
+            st.error("Please upload an SKU file first (in Step 2).")
         else:
-            with st.spinner("Processing..."):
+            with st.spinner("Processing your file... This may take a moment."):
                 df_results = run_bulk_processing(
                     st.session_state.sku_df,
                     bulk_platform,
@@ -1053,11 +1431,14 @@ elif main_mode == "Bulk Calculation":
             if not df_results.empty:
                 st.markdown("###### **5. Calculation Results**")
                 st.dataframe(df_results.style.format(precision=2))
+                
                 csv_data = convert_df_to_csv(df_results)
                 st.download_button(
                     label="Download Results as CSV",
                     data=csv_data,
-                    file_name=f"bulk_results.csv",
+                    file_name=f"bulk_results_{bulk_platform.lower()}_{bulk_calc_mode.lower().replace(' ', '_')}.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
+            else:
+                st.warning("Calculation finished, but no results were generated. Please check your file and column names.")
