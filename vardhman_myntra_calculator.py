@@ -304,7 +304,7 @@ def perform_calculations(mrp, discount,
     yk_fixed_fee = 0.0 
     royalty_fee = 0.0
     marketing_fee_base = 0.0 
-    marketing_fee_gst = 0.0 # GST on Marketing
+    marketing_fee_gst = 0.0 # --- (NEW) GST on Marketing ---
     final_commission = 0.0
     commission_rate = 0.0
     
@@ -376,7 +376,7 @@ def perform_calculations(mrp, discount,
         
         royalty_fee = calculate_myntra_new_royalty(myntra_new_brand, customer_paid_amount, apply_kuchipoo_royalty) 
         
-        # --- Myntra Marketing Fee + GST ---
+        # --- (CORRECTED) Myntra Marketing Fee + GST ---
         if myntra_new_brand == "KUCHIPOO":
             marketing_fee_base = customer_paid_amount * 0.05
         elif myntra_new_brand in ["YK", "YK Disney", "YK Marvel"]:
@@ -385,6 +385,7 @@ def perform_calculations(mrp, discount,
             marketing_fee_base = 0.0
             
         marketing_fee_gst = marketing_fee_base * 0.18 # GST on Marketing
+        # --- (END CORRECTED) ---
         
         sale_price = seller_price # Internal override for checking
             
@@ -446,13 +447,13 @@ def perform_calculations(mrp, discount,
         royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
 
     # --- 4. Total Deductions & Settlement (Paid by Platform) ---
+    # NOTE: Royalty is NOT deducted here. Platform pays you (CPA - Fees).
     
     if platform == 'Jiomart':
         total_deductions = total_platform_deduction 
     elif platform == 'Myntra':
-         # --- (UPDATED) REMOVED Marketing Fee from Platform Deductions ---
-         # Marketing Fee is now treated as an External Expense (Paid separately by user)
-         total_deductions = final_commission + gt_charge + yk_fixed_fee 
+         # --- (CORRECTED) Added marketing_fee_gst ---
+         total_deductions = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base + marketing_fee_gst
     elif platform == 'Meesho':
         total_deductions = final_commission 
     else: 
@@ -461,8 +462,8 @@ def perform_calculations(mrp, discount,
     settled_amount = customer_paid_amount - total_deductions - tds - tcs
     
     # --- 5. Net Profit (Actual Cash in Hand) ---
-    # Deduct Royalty AND Marketing Fee HERE because you pay it separately from the settlement
-    net_profit = settled_amount - product_cost - royalty_fee - marketing_fee_base - marketing_fee_gst
+    # Deduct Royalty HERE because you pay it separately from the settlement
+    net_profit = settled_amount - product_cost - royalty_fee
 
     return (sale_price, gt_charge, customer_paid_amount, royalty_fee,
             marketing_fee_base, marketing_fee_gst, # Return GST too
@@ -655,16 +656,19 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                     apply_royalty, 0.0
                 )
                 
+                # IMPORTANT: settled_amount is what platform gives.
+                # Net Profit is after you pay royalty.
+                
                 output_data.update({
                     "Selling_Price": selling_price,
                     "Bank_Settlement_Amount": settled_amount,
                     "Royalty_You_Pay": royalty_fee,
-                    "Marketing_Fee_You_Pay": marketing_fee_base + marketing_fee_gst,
                     "Net_Profit_In_Hand": net_profit
                 })
 
             else: 
                 # Check With Cost Price (Target Margin)
+                # target_margin is interpreted as Net Profit (After Royalty)
                 discount_amount, final_profit, discount_percent = find_discount_for_target_profit(
                     mrp, target_margin, cost, current_platform,
                     myntra_brand, myntra_cat, myntra_gen, apply_kuchipoo_royalty,
@@ -675,7 +679,6 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                 
                 selling_price_req = (mrp - discount_amount) if discount_amount is not None else "N/A"
                 bank_settlement_amt = "N/A"
-                marketing_total_pay = "N/A"
 
                 if discount_amount is not None:
                     wdp_calc = (mrp - discount_amount)
@@ -695,13 +698,11 @@ def run_bulk_processing(df, bulk_platform, mode, target_margin=0.0, meesho_charg
                         apply_royalty, 0.0
                     )
                     bank_settlement_amt = settled_amount
-                    marketing_total_pay = marketing_fee_base + marketing_fee_gst
 
                 output_data.update({
                     "Target_Margin": target_margin,
                     "Required_Selling_Price": selling_price_req,
                     "Bank_Settlement_Amount": bank_settlement_amt,
-                    "Marketing_Fee_You_Pay": marketing_total_pay,
                     "Projected_Net_Profit": final_profit if final_profit is not None else "N/A"
                 })
 
@@ -965,12 +966,12 @@ if main_mode == "Single Product Calculation":
                 c1.metric("Commission (+GST)", f"₹ {final_commission:,.2f}")
                 c2.metric("Fixed/Logistics (+GST)", f"₹ {gt_charge + yk_fixed_fee:,.2f}")
                 
-                # if platform_selector == 'Myntra':
-                #    c3, c4 = st.columns(2)
-                #    c3.metric("Marketing Base", f"₹ {marketing_fee_base:,.2f}")
-                #    c4.metric("Marketing GST (18%)", f"₹ {marketing_fee_gst:,.2f}")
+                if platform_selector == 'Myntra':
+                    c3, c4 = st.columns(2)
+                    c3.metric("Marketing Base", f"₹ {marketing_fee_base:,.2f}")
+                    c4.metric("Marketing GST (18%)", f"₹ {marketing_fee_gst:,.2f}")
 
-                total_deductions_display = final_commission + gt_charge + yk_fixed_fee 
+                total_deductions_display = final_commission + gt_charge + yk_fixed_fee + marketing_fee_base + marketing_fee_gst
                 st.info(f"Total Platform Deductions: ₹ {total_deductions_display:,.2f}")
 
             with col_right:
@@ -985,11 +986,6 @@ if main_mode == "Single Product Calculation":
                 ex1.metric("Product Cost", f"₹ {product_cost:,.2f}")
                 ex2.metric("Royalty (You Pay)", f"₹ {royalty_fee:,.2f}", delta="Pay Externally", delta_color="inverse")
                 
-                if platform_selector == 'Myntra':
-                    ex3, ex4 = st.columns(2)
-                    ex3.metric("Marketing (You Pay)", f"₹ {marketing_fee_base:,.2f}", delta="Pay Externally", delta_color="inverse")
-                    ex4.metric("Mrkt GST (18%)", f"₹ {marketing_fee_gst:,.2f}", delta="Pay Externally", delta_color="inverse")
-
                 st.markdown("---")
                 st.metric("💰 NET PROFIT (In Hand)", f"₹ {net_profit:,.2f}", delta=f"Target: ₹ {product_margin_target_rs:,.2f}")
 
@@ -1065,4 +1061,3 @@ elif main_mode == "Bulk Calculation":
                     mime="text/csv",
                     use_container_width=True
                 )
-
