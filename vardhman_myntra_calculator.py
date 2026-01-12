@@ -421,16 +421,28 @@ def perform_calculations(mrp, discount,
 
     elif platform == 'Jiomart':
         
-        commission_rate = get_jiomart_commission_rate(jiomart_category, customer_paid_amount) if jiomart_category else 0.0 # Use customer_paid_amount
-        jiomart_comm_fee_base = customer_paid_amount * commission_rate # Use customer_paid_amount
-        jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(customer_paid_amount) # Use customer_paid_amount
+        commission_rate = get_jiomart_commission_rate(jiomart_category, customer_paid_amount) if jiomart_category else 0.0 
+        jiomart_comm_fee_base = customer_paid_amount * commission_rate 
+        jiomart_fixed_fee_base = calculate_jiomart_fixed_fee_base(customer_paid_amount) 
         jiomart_shipping_fee_base = calculate_jiomart_shipping_fee_base(weight_in_kg, shipping_zone) if shipping_zone and weight_in_kg > 0 else 0.0
         
         jiomart_total_fee_base = jiomart_comm_fee_base + jiomart_fixed_fee_base + jiomart_shipping_fee_base
         
-        jiomart_benefit_amount = -(customer_paid_amount * jiomart_benefit_rate) # Use customer_paid_amount
+        # --- (UPDATED LOGIC: MAX FEE CAP) ---
+        # Calculate the maximum fee allowed based on the input percentage
+        max_fee_allowed = customer_paid_amount * jiomart_benefit_rate
         
-        jiomart_final_applicable_fee_base = jiomart_total_fee_base + jiomart_benefit_amount
+        # If the standard total fee is greater than the cap, use the cap.
+        if jiomart_total_fee_base > max_fee_allowed:
+            jiomart_final_applicable_fee_base = max_fee_allowed
+            # Benefit is the amount reduced from the total fee
+            # Stored as negative to match display style (-12.70)
+            jiomart_benefit_amount = -(jiomart_total_fee_base - max_fee_allowed)
+        else:
+            # If standard fee is less than the cap, just pay the standard fee
+            jiomart_final_applicable_fee_base = jiomart_total_fee_base
+            jiomart_benefit_amount = 0.0
+        # --- (END UPDATED LOGIC) ---
             
         jiomart_gst_on_fees = jiomart_final_applicable_fee_base * GST_RATE_FEES
             
@@ -440,7 +452,7 @@ def perform_calculations(mrp, discount,
         total_fixed_charge = jiomart_fixed_fee_base + jiomart_shipping_fee_base
         gt_charge = total_fixed_charge 
         
-        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 # Use customer_paid_amount
+        royalty_fee = customer_paid_amount * 0.10 if apply_royalty == 'Yes' else 0.0 
 
             
     # tax_amount = customer_paid_amount - taxable_amount_value
@@ -1091,8 +1103,8 @@ if main_mode == "Single Product Calculation":
             jiomart_category = None if selected_jiomart_category == "Select Category" else selected_jiomart_category
             
             jiomart_benefit_rate = col_jio_benefit.number_input(
-                "Benefit Rate (%)", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f", 
-                help="Flat Brand Fee Benefit Rate applied to Sale Price.", key="flat_benefit_rate"
+                "Benefit Rate (%) / Max Fee Cap", min_value=0.0, max_value=50.0, value=1.0, step=0.1, format="%.2f", 
+                help="Enter percentage. The total fee will be capped at this % of Selling Price.", key="flat_benefit_rate"
             ) / 100.0
             
             st.markdown("##### **Jiomart Shipping & Logistics**")
@@ -1265,7 +1277,7 @@ if main_mode == "Single Product Calculation":
                             col7_l.metric(label="Total Fee (1+2+3)", value=f"₹ {jiomart_total_fee_base:,.2f}")
                             st.markdown("---")
                             col8_l, col9_l, col10_l = st.columns(3)
-                            col8_l.metric(label=f"Benefit ({jiomart_benefit_rate * 100:,.2f}%)", value=f"₹ {abs(jiomart_benefit_amount):,.2f}", delta="Deduction from Fees", delta_color="normal")
+                            col8_l.metric(label=f"Benefit ({jiomart_benefit_rate * 100:,.2f}%)", value=f"₹ {jiomart_benefit_amount:,.2f}", delta="Adjustment", delta_color="normal")
                             col9_l.metric(label="Final Applicable Fee (B)", value=f"₹ {jiomart_final_applicable_fee_base:,.2f}")
                             col10_l.metric(label="GST @ 18% (C) on (B)", value=f"₹ {jiomart_gst_on_fees:,.2f}")
                             st.markdown("---")
